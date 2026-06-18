@@ -211,6 +211,7 @@ const BallRenderer = {
         ctx.strokeStyle=lighten(c,.3);ctx.lineWidth=1.2;ctx.globalAlpha=.5;
         ctx.beginPath();ctx.arc(x,y,h*(sc+.15),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;break;
       }
+    }
   },
   _blob(ctx,cx,cy,rx,ry,idx){
     const ang=[.12,-.18,.06,-.09,.22,-.14,.03,.30];

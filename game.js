@@ -343,7 +343,7 @@ class Ball {
   }
   reset(cw,ch,dir){
     this.x=cw/2;this.y=ch/2;this.prevX=this.x;this.prevY=this.y;this.speed=CONFIG.ballSpeedInitial;
-    const ang=(Math.random()*.8-.4)+(dir>0?0:Math.PI);
+    const ang=Math.random()*.8-.4;
     this.dx=Math.cos(ang)*this.speed*dir;this.dy=Math.sin(ang)*this.speed;
   }
   update(){this.prevX=this.x;this.prevY=this.y;this.x+=this.dx;this.y+=this.dy;}

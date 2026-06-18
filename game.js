@@ -360,18 +360,19 @@ const BallRenderer = {
 
   // -- saturn: multi-band ring with Cassini gap, planet shading, ring shadow
   _saturn(ctx,x,y,r){
-    // back half of outer ring
+    const TAU=Math.PI*2;
+    // back half of outer ring (PI to 2PI = top half, behind planet)
     ctx.strokeStyle='#c8b870';ctx.lineWidth=r*.22;
-    ctx.beginPath();ctx.ellipse(x,y,r*1.62,r*.30,0,Math.PI,0);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(x,y,r*1.62,r*.30,0,Math.PI,TAU);ctx.stroke();
     // back half of inner ring
     ctx.strokeStyle='#e0d0a8';ctx.lineWidth=r*.14;
-    ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,Math.PI,0);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,Math.PI,TAU);ctx.stroke();
     // planet body with gradient
     const pgrad=ctx.createRadialGradient(x-r*.2,y-r*.15,r*.05,x,y,r);
     pgrad.addColorStop(0,'#f5edc8');pgrad.addColorStop(.6,'#e8d5a0');pgrad.addColorStop(1,'#c8b070');
-    ctx.fillStyle=pgrad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=pgrad;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
     // planet bands
-    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.clip();
     const sbands=[
       {dy:-.50,h:.14,c:'#d4c080'},{dy:-.20,h:.16,c:'#f2e8c8'},
       {dy:.05, h:.18,c:'#d8c888'},{dy:.25, h:.15,c:'#f0e0b8'},
@@ -382,21 +383,21 @@ const BallRenderer = {
     ctx.fillStyle='rgba(0,0,0,.08)';ctx.fillRect(x-r,y-r*.1,r*2,r*.2);
     ctx.restore();
     // planet outline
-    ctx.strokeStyle='#b8a060';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-    // front half of inner ring
+    ctx.strokeStyle='#b8a060';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
+    // front half of inner ring (0 to PI = bottom half, in front of planet)
     ctx.strokeStyle='#e0d0a8';ctx.lineWidth=r*.14;
     ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,0,Math.PI);ctx.stroke();
-    // Cassini division outline
+    // Cassini division outline (front)
     ctx.strokeStyle='rgba(0,0,0,.15)';ctx.lineWidth=.6;
     ctx.beginPath();ctx.ellipse(x,y,r*1.48,r*.26,0,0,Math.PI);ctx.stroke();
     // front half of outer ring
     ctx.strokeStyle='#d4c898';ctx.lineWidth=r*.22;
     ctx.beginPath();ctx.ellipse(x,y,r*1.62,r*.30,0,0,Math.PI);ctx.stroke();
-    // outer ring edge
+    // full ring edge outlines
     ctx.strokeStyle='#b0a060';ctx.lineWidth=1;
-    ctx.beginPath();ctx.ellipse(x,y,r*1.62,r*.30,0,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(x,y,r*1.62,r*.30,0,0,TAU);ctx.stroke();
     ctx.strokeStyle='#b0a060';ctx.lineWidth=.8;
-    ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,0,TAU);ctx.stroke();
   },
 
   // -- moon: gray with craters

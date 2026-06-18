@@ -284,31 +284,45 @@ const BallRenderer = {
     }
   },
 
-  // -- 8-ball: black with white circle and "8"
+  // -- 8-ball: black sphere with white number plate, highlight shine
   _8ball(ctx,x,y,r){
-    ctx.fillStyle='#111111';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    const grad=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.08,x,y,r);
+    grad.addColorStop(0,'#2a2a2a');grad.addColorStop(.85,'#111');grad.addColorStop(1,'#000');
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.5,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#888';ctx.lineWidth=.6;ctx.beginPath();ctx.arc(x,y,r*.5,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle='#111';ctx.font=`bold ${r*.7}px "Press Start 2P",monospace`;
+    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.48,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#aaa';ctx.lineWidth=.5;ctx.beginPath();ctx.arc(x,y,r*.48,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#111';ctx.font=`bold ${r*.72}px "Press Start 2P",monospace`;
     ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('8',x,y+.5);
+    ctx.fillStyle='rgba(255,255,255,.25)';ctx.beginPath();ctx.arc(x-r*.22,y-r*.28,r*.14,0,Math.PI*2);ctx.fill();
   },
 
-  // -- beachball: alternating colored wedges
+  // -- beachball: 6 colored wedges with 3D shading and white divider seams
   _beachball(ctx,x,y,r){
     const cols=['#ffffff','#ee3333','#ffdd00','#3366ff','#ff8800','#33cc44'];
+    const dark=['#d8d8d8','#c02020','#dbb800','#2044cc','#d87000','#20a030'];
     for(let i=0;i<6;i++){
       const a0=Math.PI*2/6*i-Math.PI*.5,a1=a0+Math.PI*2/6;
-      ctx.fillStyle=cols[i];ctx.beginPath();ctx.moveTo(x,y);
+      const g=ctx.createRadialGradient(x,y,r*.05,x,y,r);
+      g.addColorStop(0,cols[i]);g.addColorStop(.7,cols[i]);g.addColorStop(1,dark[i]);
+      ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(x,y);
       ctx.arc(x,y,r,a0,a1);ctx.closePath();ctx.fill();
     }
-    ctx.strokeStyle='rgba(0,0,0,.25)';ctx.lineWidth=.8;
+    // white divider lines
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=.8;
+    for(let i=0;i<6;i++){
+      const a=Math.PI*2/6*i-Math.PI*.5;
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);ctx.stroke();
+    }
+    ctx.strokeStyle='rgba(0,0,0,.2)';ctx.lineWidth=1;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
-  // -- earth: blue ocean, green continents, white clouds
+  // -- earth: blue ocean gradient, varied continents, clouds, atmospheric rim
   _earth(ctx,x,y,r){
-    ctx.fillStyle='#2266cc';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    const og=ctx.createRadialGradient(x,y,r*.4,x,y,r);
+    og.addColorStop(0,'#3388dd');og.addColorStop(1,'#114488');
+    ctx.fillStyle=og;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
     ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
     ctx.fillStyle='#44bb44';
     this._blob(ctx,x-r*.35,y-r*.25,r*.45,r*.30,0);
@@ -316,43 +330,65 @@ const BallRenderer = {
     this._blob(ctx,x+r*.20,y-r*.45,r*.30,r*.22,2);
     this._blob(ctx,x-r*.10,y+r*.50,r*.25,r*.18,3);
     this._blob(ctx,x+r*.30,y-r*.05,r*.18,r*.14,4);
-    ctx.fillStyle='#88dd55';
+    ctx.fillStyle='#55cc44';
     this._blob(ctx,x+r*.05,y+r*.35,r*.18,r*.12,5);
-    ctx.fillStyle='rgba(255,255,255,.35)';
+    this._blob(ctx,x-r*.40,y+r*.15,r*.16,r*.10,8);
+    ctx.fillStyle='rgba(255,255,255,.40)';
     this._blob(ctx,x-r*.20,y+r*.20,r*.22,r*.08,6);
     this._blob(ctx,x+r*.25,y-r*.30,r*.20,r*.06,7);
+    this._blob(ctx,x-r*.05,y-r*.10,r*.25,r*.05,9);
     ctx.restore();
-    ctx.strokeStyle='#1a4488';ctx.lineWidth=.8;
+    ctx.strokeStyle='rgba(100,180,255,.5)';ctx.lineWidth=1.2;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
-  // -- mars: red surface with craters and polar cap
+  // -- mars: red planet with dark highlands, numerous craters, polar ice cap
   _mars(ctx,x,y,r){
-    ctx.fillStyle='#cc4422';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    const mg=ctx.createRadialGradient(x-r*.15,y-r*.15,r*.1,x,y,r);
+    mg.addColorStop(0,'#dd5530');mg.addColorStop(.7,'#cc4422');mg.addColorStop(1,'#993311');
+    ctx.fillStyle=mg;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
     ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    // darker highland regions
+    ctx.fillStyle='rgba(80,20,10,.3)';
+    this._blob(ctx,x-r*.30,y-r*.10,r*.35,r*.22,10);
+    this._blob(ctx,x+r*.20,y+r*.35,r*.28,r*.20,11);
+    // numerous craters
     ctx.fillStyle=darken('#cc4422',.2);
-    const craters=[[-.30,-.15,.18],[.22,.18,.14],[-.10,.30,.12],[.35,-.25,.10],[-.40,.10,.09],[.08,-.38,.11]];
+    const craters=[
+      [-.30,-.15,.18],[.22,.18,.14],[-.10,.30,.12],[.35,-.25,.10],
+      [-.40,.10,.09],[.08,-.38,.11],[.15,-.10,.07],[-.20,.45,.08],
+      [.45,.05,.06],[-.35,-.35,.07],
+    ];
     for(const[dx,dy,rr]of craters){ctx.beginPath();ctx.arc(x+r*dx,y+r*dy,r*rr,0,Math.PI*2);ctx.fill();}
-    ctx.fillStyle='#eeddcc';ctx.beginPath();ctx.ellipse(x,y-r*.75,r*.5,r*.15,0,0,Math.PI*2);ctx.fill();
+    // crater rims (lighter)
+    ctx.strokeStyle='rgba(200,150,130,.25)';ctx.lineWidth=.4;
+    for(const[dx,dy,rr]of craters){ctx.beginPath();ctx.arc(x+r*dx,y+r*dy,r*rr,0,Math.PI*2);ctx.stroke();}
+    // polar ice cap
+    ctx.fillStyle='#eeddcc';ctx.beginPath();ctx.ellipse(x,y-r*.72,r*.48,r*.14,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,240,230,.4)';ctx.beginPath();ctx.ellipse(x,y-r*.76,r*.38,r*.10,0,0,Math.PI*2);ctx.fill();
     ctx.restore();
-    ctx.strokeStyle='#882211';ctx.lineWidth=.8;
+    ctx.strokeStyle='#772211';ctx.lineWidth=.8;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
-  // -- jupiter: banded gas giant with red spot
+  // -- jupiter: detailed bands with turbulence, prominent Great Red Spot
   _jupiter(ctx,x,y,r){
     ctx.fillStyle='#d4b896';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
     ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
     const bands=[
-      {dy:-.5, h:.25, c:'#c4956a'},
-      {dy:-.15,h:.22, c:'#e8d5c0'},
-      {dy:.15, h:.18, c:'#b87850'},
-      {dy:.35, h:.26, c:'#e0c8a8'},
-      {dy:.60, h:.20, c:'#c4956a'},
+      {dy:-.60,h:.14,c:'#c09560'},{dy:-.45,h:.12,c:'#e8d0b0'},
+      {dy:-.32,h:.16,c:'#b88050'},{dy:-.15,h:.13,c:'#e8d5c0'},
+      {dy:-.02,h:.18,c:'#c09060'},{dy:.16, h:.14,c:'#e0c8a8'},
+      {dy:.30, h:.16,c:'#b87850'},{dy:.47, h:.12,c:'#e8d0b0'},
+      {dy:.60, h:.14,c:'#c09560'},
     ];
     for(const b of bands){ctx.fillStyle=b.c;ctx.fillRect(x-r,y+r*b.dy-r*b.h/2,r*2,r*b.h);}
-    ctx.fillStyle='#d4594a';ctx.beginPath();ctx.ellipse(x+r*.3,y+r*.18,r*.22,r*.12,.3,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#e8806a';ctx.beginPath();ctx.ellipse(x+r*.3,y+r*.16,r*.14,r*.07,.3,0,Math.PI*2);ctx.fill();
+    // Great Red Spot with inner detail
+    ctx.fillStyle='#d4594a';ctx.beginPath();ctx.ellipse(x+r*.3,y+r*.18,r*.24,r*.13,.3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#e8806a';ctx.beginPath();ctx.ellipse(x+r*.3,y+r*.16,r*.16,r*.08,.3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#c04030';ctx.beginPath();ctx.ellipse(x+r*.32,y+r*.19,r*.08,r*.04,.3,0,Math.PI*2);ctx.fill();
+    // smaller storms
+    ctx.fillStyle='#e8c090';ctx.beginPath();ctx.ellipse(x-r*.25,y+r*.30,r*.10,r*.04,-.2,0,Math.PI*2);ctx.fill();
     ctx.restore();
     ctx.strokeStyle='#8a6040';ctx.lineWidth=.8;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
@@ -400,53 +436,85 @@ const BallRenderer = {
     ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,0,TAU);ctx.stroke();
   },
 
-  // -- moon: gray with craters
+  // -- moon: spherical gradient, dark maria, craters with rims
   _moon(ctx,x,y,r){
-    ctx.fillStyle='#c8c8c8';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#a0a0a0';
-    const craters=[[-.30,-.20,.18],[.25,.10,.15],[-.05,.35,.13],[.40,-.30,.11],[-.45,.25,.10],[.10,-.40,.09]];
-    for(const[dx,dy,rr]of craters){ctx.beginPath();ctx.arc(x+r*dx,y+r*dy,r*rr,0,Math.PI*2);ctx.fill();}
-    ctx.strokeStyle='#999';ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-  },
-
-  // -- wood: brown with darker grain arcs
-  _wood(ctx,x,y,r,c){
-    const base=blendHex(c,'#8B6914',.5);
-    ctx.fillStyle=base;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
-    ctx.strokeStyle=darken(base,.25);ctx.lineWidth=.7;
-    const grains=[
-      {dy:-.45, rx:r*.8}, {dy:-.15, rx:r*.95}, {dy:.12, rx:r*.85},
-      {dy:.35, rx:r*.75}, {dy:-.30, rx:r*.92}, {dy:.22, rx:r*.7},
+    const mg=ctx.createRadialGradient(x-r*.25,y-r*.25,r*.1,x,y,r);
+    mg.addColorStop(0,'#e0e0e0');mg.addColorStop(.75,'#c0c0c0');mg.addColorStop(1,'#9a9a9a');
+    ctx.fillStyle=mg;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    // dark maria regions
+    ctx.fillStyle='rgba(130,130,135,.35)';
+    this._blob(ctx,x+r*.15,y+.15,r*.30,r*.22,12);
+    this._blob(ctx,x-r*.20,y-.10,r*.25,r*.18,13);
+    this._blob(ctx,x-.05,y+.30,r*.22,r*.15,14);
+    // craters with lighter rims
+    const craters=[
+      [-.30,-.20,.18],[.25,.10,.14],[-.05,.35,.12],[.40,-.30,.10],
+      [-.45,.25,.09],[.10,-.38,.11],[-.15,-.35,.07],[.35,.30,.06],
     ];
-    for(const g of grains){
-      ctx.beginPath();ctx.moveTo(x-g.rx,y+r*g.dy);
-      ctx.quadraticCurveTo(x,y+r*g.dy-g.rx*.15,x+g.rx,y+r*g.dy);ctx.stroke();
+    const crc=darken('#c0c0c0',.2);
+    for(const[dx,dy,rr]of craters){
+      ctx.fillStyle=crc;ctx.beginPath();ctx.arc(x+r*dx,y+r*dy,r*rr,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(220,220,220,.4)';ctx.lineWidth=.4;
+      ctx.beginPath();ctx.arc(x+r*dx,y+r*dy,r*rr,0,Math.PI*2);ctx.stroke();
     }
-    ctx.restore();
-    ctx.strokeStyle=darken(base,.35);ctx.lineWidth=1;
+    ctx.strokeStyle='#999';ctx.lineWidth=.8;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
-  // -- metal: silver with gradient sheen and highlight
+  // -- wood: radial gradient, wood knot, multiple grain arcs, dark rim
+  _wood(ctx,x,y,r,c){
+    const base=blendHex(c,'#8B6914',.5);
+    const wg=ctx.createRadialGradient(x-r*.2,y-r*.2,r*.1,x,y,r);
+    wg.addColorStop(0,lighten(base,.1));wg.addColorStop(.7,base);wg.addColorStop(1,darken(base,.25));
+    ctx.fillStyle=wg;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    // wood knot
+    const kx=x+r*.2,ky=y-r*.15;
+    ctx.fillStyle=darken(base,.3);ctx.beginPath();ctx.ellipse(kx,ky,r*.12,r*.08,.5,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=darken(base,.4);ctx.lineWidth=.6;
+    ctx.beginPath();ctx.ellipse(kx,ky,r*.18,r*.12,.5,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(kx,ky,r*.24,r*.16,.5,0,Math.PI*2);ctx.stroke();
+    // grain arcs
+    ctx.strokeStyle=darken(base,.2);ctx.lineWidth=.6;
+    const grains=[
+      {dy:-.48,rx:.78},{dy:-.22,rx:.92},{dy:.02,rx:.85},
+      {dy:.22,rx:.80},{dy:.40,rx:.72},{dy:-.10,rx:.95},
+    ];
+    for(const g of grains){
+      ctx.beginPath();ctx.moveTo(x-g.rx*r,y+r*g.dy);
+      ctx.quadraticCurveTo(x,y+r*g.dy-g.rx*r*.12,x+g.rx*r,y+r*g.dy);ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle=darken(base,.4);ctx.lineWidth=1.1;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- metal: multi-band reflection, dark edge, sharp highlight
   _metal(ctx,x,y,r,c){
     const base=blendHex(c,'#aaaaaa',.5);
-    const grad=ctx.createLinearGradient(x-r,y-r,x+r,y+r);
-    grad.addColorStop(0,lighten(base,.4));
-    grad.addColorStop(.35,base);
-    grad.addColorStop(.55,darken(base,.15));
-    grad.addColorStop(.75,lighten(base,.2));
-    grad.addColorStop(1,darken(base,.3));
-    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.5)';
-    ctx.beginPath();ctx.arc(x-r*.25,y-r*.25,r*.25,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle=darken(base,.3);ctx.lineWidth=1;
+    const bg=ctx.createRadialGradient(x-r*.25,y-r*.25,r*.15,x,y,r);
+    bg.addColorStop(0,'#e8e8e8');bg.addColorStop(.3,'#c8c8c8');
+    bg.addColorStop(.55,darken(base,.1));bg.addColorStop(.7,'#b0b0b0');
+    bg.addColorStop(.85,darken(base,.2));bg.addColorStop(1,darken(base,.4));
+    ctx.fillStyle=bg;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    // reflection bands
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    ctx.fillStyle='rgba(255,255,255,.18)';
+    ctx.fillRect(x-r,y-r*.15,r*2,r*.18);
+    ctx.fillStyle='rgba(255,255,255,.10)';
+    ctx.fillRect(x-r,y+r*.35,r*2,r*.10);
+    ctx.restore();
+    // sharp highlight spot
+    const hg=ctx.createRadialGradient(x-r*.18,y-r*.22,0,x-r*.18,y-r*.22,r*.35);
+    hg.addColorStop(0,'rgba(255,255,255,.7)');hg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=hg;ctx.beginPath();ctx.arc(x-r*.18,y-r*.22,r*.35,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=darken(base,.35);ctx.lineWidth=1;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
   // -- blob helper for earth continents
   _blob(ctx,cx,cy,rx,ry,idx){
-    const ang=[.12,-.18,.06,-.09,.22,-.14,.03,.30,.08,-.05,.16,-.11];
+    const ang=[.12,-.18,.06,-.09,.22,-.14,.03,.30,.08,-.05,.16,-.11,.20,-.07,.04,-.22,.10,.14];
     ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,ang[idx%ang.length],0,Math.PI*2);ctx.fill();
   },
 };

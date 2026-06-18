@@ -535,8 +535,8 @@ class PongGame {
     if(this.ball.y+bw>=CONFIG.canvasHeight){this.ball.y=CONFIG.canvasHeight-bw;this.ball.dy=-Math.abs(this.ball.dy);if(settings.soundEnabled)this.sound.play('wall');}
     if(this.ball.dx<0&&this.ball.x-bw<=this.paddleLeft.x+this.paddleLeft.width&&this.ball.x-bw>=this.paddleLeft.x&&this.ball.y+bw>=this.paddleLeft.y&&this.ball.y-bw<=this.paddleLeft.y+this.paddleLeft.height)this._hitPaddle(this.paddleLeft,1);
     if(this.ball.dx>0&&this.ball.x+bw>=this.paddleRight.x&&this.ball.x+bw<=this.paddleRight.x+this.paddleRight.width&&this.ball.y+bw>=this.paddleRight.y&&this.ball.y-bw<=this.paddleRight.y+this.paddleRight.height)this._hitPaddle(this.paddleRight,-1);
-    if(this.ball.x+bw<0){this.paddleRight.score++;this.serveDirection=-1;this.transition('goal');}
-    if(this.ball.x-bw>CONFIG.canvasWidth){this.paddleLeft.score++;this.serveDirection=1;this.transition('goal');}
+    if(this.ball.x+bw<0){this.paddleRight.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
+    if(this.ball.x-bw>CONFIG.canvasWidth){this.paddleLeft.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
   }
   _hitPaddle(paddle,dir){
     const hp=(this.ball.y-paddle.y)/paddle.height,cl=Math.max(.05,Math.min(.95,hp)),ang=(cl-.5)*(Math.PI/3);

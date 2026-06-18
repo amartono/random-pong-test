@@ -492,7 +492,7 @@ class PongGame {
   _resetGame(){
     this.paddleLeft.score=0;this.paddleRight.score=0;
     this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);
-    this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,1);this.particles=[];this.serveDirection=1;
+    this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,1);this.particles=[];this.serveDirection=Math.random()<.5?1:-1;
   }
 
   transition(newState){

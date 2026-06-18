@@ -1,8 +1,9 @@
 /**
  * PONG — HTML5 Canvas Game
  *  - 3 dedicated customization pages: Theme / Paddles / Ball
+ *  - Ball preview canvas, 14 round ball skins
  *  - Paddle styles per player, dynamic sizing, glow slider, theme overrides
- *  - Frame interpolation, 12 ball skins, 9 themes, AI opponent, sound
+ *  - Frame interpolation, AI opponent, sound, 9 themes
  */
 
 /* ------------------------------------------------------------------ */
@@ -141,80 +142,234 @@ const PADDLE_STYLES = [
 ];
 
 const BALL_SKINS = [
-  { key:'circle',label:'CIRCLE' },{ key:'ring',label:'RING' },
-  { key:'basketball',label:'B-BALL' },{ key:'soccer',label:'SOCCER' },{ key:'tennis',label:'TENNIS' },
-  { key:'planet',label:'PLANET' },{ key:'moon',label:'MOON' },
-  { key:'glow',label:'GLOW' },{ key:'pulse',label:'PULSE' },
+  { key:'circle',     label:'CIRCLE' },
+  { key:'ring',       label:'RING' },
+  { key:'basketball', label:'B-BALL' },
+  { key:'soccer',     label:'SOCCER' },
+  { key:'tennis',     label:'TENNIS' },
+  { key:'8ball',      label:'8-BALL' },
+  { key:'beachball',  label:'BEACH' },
+  { key:'earth',      label:'EARTH' },
+  { key:'mars',       label:'MARS' },
+  { key:'jupiter',    label:'JUPITER' },
+  { key:'saturn',     label:'SATURN' },
+  { key:'moon',       label:'MOON' },
+  { key:'wood',       label:'WOOD' },
+  { key:'metal',      label:'METAL' },
 ];
 
 /* ------------------------------------------------------------------ */
-/*  BALL RENDERER (same as before, compressed)                         */
+/*  BALL RENDERER                                                      */
 /* ------------------------------------------------------------------ */
 
 const BallRenderer = {
   draw(ctx,x,y,s,c,skin,t){
     const h=s/2;
     switch(skin){
-      case'circle':ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();break;
-      case'ring':ctx.strokeStyle=c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,h-1.5,0,Math.PI*2);ctx.stroke();break;
-      case'basketball':{
-        const b=blendHex(c,'#e87400',.55);ctx.fillStyle=b;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();
-        ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.5;
-        ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.stroke();
-        ctx.beginPath();ctx.moveTo(x-h,y);ctx.quadraticCurveTo(x,y-h*.5,x+h,y);ctx.stroke();
-        ctx.beginPath();ctx.moveTo(x,y-h);ctx.lineTo(x,y+h);ctx.stroke();
-        break;
-      }
-      case'soccer':{
-        ctx.fillStyle='#f0f0f0';ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();
-        ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.2;
-        ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.stroke();
-        const pr=h*.38;ctx.fillStyle='#1a1a1a';ctx.beginPath();
-        for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2,px=x+Math.cos(a)*pr,py=y+Math.sin(a)*pr;
-          if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}
-        ctx.closePath();ctx.fill();ctx.stroke();
-        for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2;
-          ctx.beginPath();ctx.moveTo(x+Math.cos(a)*pr,y+Math.sin(a)*pr);
-          ctx.lineTo(x+Math.cos(a)*h,y+Math.sin(a)*h);ctx.stroke();}
-        break;
-      }
-      case'tennis':{const b=blendHex(c,'#ccff00',.5);ctx.fillStyle=b;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();
-        ctx.strokeStyle='#fafaf0';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,h*.7,-.6,2.5);ctx.stroke();break;}
-      case'planet':{
-        ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();ctx.save();
-        ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.clip();
-        const land=shiftHue(c,40);ctx.fillStyle=land;
-        this._blob(ctx,x-h*.35,y-h*.25,h*.45,h*.30,0);
-        this._blob(ctx,x+h*.15,y+h*.15,h*.35,h*.25,1);
-        this._blob(ctx,x+h*.20,y-h*.45,h*.30,h*.22,2);
-        this._blob(ctx,x-h*.10,y+h*.50,h*.25,h*.18,3);
-        ctx.restore();ctx.strokeStyle=darken(c,.2);ctx.lineWidth=.8;
-        ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.stroke();break;
-      }
-      case'moon':{
-        const base=darken(c,.3);ctx.fillStyle=base;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle=darken(base,.25);
-        const craters=[[-.30,-.20,.18],[.25,.10,.15],[-.05,.35,.13],[.40,-.30,.11],[-.45,.25,.10],[.10,-.40,.09]];
-        for(const[dx,dy,rr]of craters){ctx.beginPath();ctx.arc(x+h*dx,y+h*dy,h*rr,0,Math.PI*2);ctx.fill();}
-        ctx.strokeStyle=darken(c,.15);ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.stroke();break;
-      }
-      case'glow':{
-        const p=.7+Math.sin((t||Date.now())/400)*.15;
-        const grad=ctx.createRadialGradient(x,y,h*.3,x,y,h*2.2*p);
-        grad.addColorStop(0,c);grad.addColorStop(.45,colorWithAlpha(c,.35));grad.addColorStop(1,colorWithAlpha(c,0));
-        ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,h*2.2*p,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h*.55,0,Math.PI*2);ctx.fill();break;
-      }
-      case'pulse':{
-        const sc=.7+Math.sin((t||Date.now())/200)*.3,cr=h*sc;
-        ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,cr,0,Math.PI*2);ctx.fill();
-        ctx.strokeStyle=lighten(c,.3);ctx.lineWidth=1.2;ctx.globalAlpha=.5;
-        ctx.beginPath();ctx.arc(x,y,h*(sc+.15),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;break;
-      }
+      case'circle':
+        ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();break;
+      case'ring':
+        ctx.strokeStyle=c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,h-1.5,0,Math.PI*2);ctx.stroke();break;
+      case'basketball':
+        this._basketball(ctx,x,y,h,c);break;
+      case'soccer':
+        this._soccer(ctx,x,y,h);break;
+      case'tennis':
+        this._tennis(ctx,x,y,h,c);break;
+      case'8ball':
+        this._8ball(ctx,x,y,h);break;
+      case'beachball':
+        this._beachball(ctx,x,y,h);break;
+      case'earth':
+        this._earth(ctx,x,y,h);break;
+      case'mars':
+        this._mars(ctx,x,y,h);break;
+      case'jupiter':
+        this._jupiter(ctx,x,y,h);break;
+      case'saturn':
+        this._saturn(ctx,x,y,h);break;
+      case'moon':
+        this._moon(ctx,x,y,h);break;
+      case'wood':
+        this._wood(ctx,x,y,h,c);break;
+      case'metal':
+        this._metal(ctx,x,y,h,c);break;
+      default:
+        ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();
     }
   },
+
+  // -- basketball: orange with black seam lines
+  _basketball(ctx,x,y,r,c){
+    const base=blendHex(c,'#e87400',.55);
+    ctx.fillStyle=base;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x-r,y);ctx.quadraticCurveTo(x,y-r*.5,x+r,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x,y+r);ctx.stroke();
+  },
+
+  // -- soccer: white with black pentagon pattern
+  _soccer(ctx,x,y,r){
+    ctx.fillStyle='#f0f0f0';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    const pr=r*.38;ctx.fillStyle='#1a1a1a';ctx.beginPath();
+    for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2,px=x+Math.cos(a)*pr,py=y+Math.sin(a)*pr;
+      if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}
+    ctx.closePath();ctx.fill();ctx.stroke();
+    for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2;
+      ctx.beginPath();ctx.moveTo(x+Math.cos(a)*pr,y+Math.sin(a)*pr);
+      ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);ctx.stroke();}
+  },
+
+  // -- tennis: yellow-green with white curved seam
+  _tennis(ctx,x,y,r,c){
+    const base=blendHex(c,'#ccff00',.5);
+    ctx.fillStyle=base;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#fafaf0';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(x,y,r*.7,-.6,2.5);ctx.stroke();
+  },
+
+  // -- 8-ball: black with white circle and "8"
+  _8ball(ctx,x,y,r){
+    ctx.fillStyle='#111111';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.5,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#888';ctx.lineWidth=.6;ctx.beginPath();ctx.arc(x,y,r*.5,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#111';ctx.font=`bold ${r*.7}px "Press Start 2P",monospace`;
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('8',x,y+.5);
+  },
+
+  // -- beachball: alternating colored wedges
+  _beachball(ctx,x,y,r){
+    const cols=['#ffffff','#ee3333','#ffdd00','#3366ff','#ff8800','#33cc44'];
+    for(let i=0;i<6;i++){
+      const a0=Math.PI*2/6*i-Math.PI*.5,a1=a0+Math.PI*2/6;
+      ctx.fillStyle=cols[i];ctx.beginPath();ctx.moveTo(x,y);
+      ctx.arc(x,y,r,a0,a1);ctx.closePath();ctx.fill();
+    }
+    ctx.strokeStyle='rgba(0,0,0,.25)';ctx.lineWidth=.8;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- earth: blue ocean, green continents, white clouds
+  _earth(ctx,x,y,r){
+    ctx.fillStyle='#2266cc';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    ctx.fillStyle='#44bb44';
+    this._blob(ctx,x-r*.35,y-r*.25,r*.45,r*.30,0);
+    this._blob(ctx,x+r*.15,y+r*.15,r*.35,r*.25,1);
+    this._blob(ctx,x+r*.20,y-r*.45,r*.30,r*.22,2);
+    this._blob(ctx,x-r*.10,y+r*.50,r*.25,r*.18,3);
+    this._blob(ctx,x+r*.30,y-r*.05,r*.18,r*.14,4);
+    ctx.fillStyle='#88dd55';
+    this._blob(ctx,x+r*.05,y+r*.35,r*.18,r*.12,5);
+    ctx.fillStyle='rgba(255,255,255,.35)';
+    this._blob(ctx,x-r*.20,y+r*.20,r*.22,r*.08,6);
+    this._blob(ctx,x+r*.25,y-r*.30,r*.20,r*.06,7);
+    ctx.restore();
+    ctx.strokeStyle='#1a4488';ctx.lineWidth=.8;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- mars: red surface with craters and polar cap
+  _mars(ctx,x,y,r){
+    ctx.fillStyle='#cc4422';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    ctx.fillStyle=darken('#cc4422',.2);
+    const craters=[[-.30,-.15,.18],[.22,.18,.14],[-.10,.30,.12],[.35,-.25,.10],[-.40,.10,.09],[.08,-.38,.11]];
+    for(const[dx,dy,rr]of craters){ctx.beginPath();ctx.arc(x+r*dx,y+r*dy,r*rr,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle='#eeddcc';ctx.beginPath();ctx.ellipse(x,y-r*.75,r*.5,r*.15,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle='#882211';ctx.lineWidth=.8;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- jupiter: banded gas giant with red spot
+  _jupiter(ctx,x,y,r){
+    ctx.fillStyle='#d4b896';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    const bands=[
+      {dy:-.5, h:.25, c:'#c4956a'},
+      {dy:-.15,h:.22, c:'#e8d5c0'},
+      {dy:.15, h:.18, c:'#b87850'},
+      {dy:.35, h:.26, c:'#e0c8a8'},
+      {dy:.60, h:.20, c:'#c4956a'},
+    ];
+    for(const b of bands){ctx.fillStyle=b.c;ctx.fillRect(x-r,y+r*b.dy-r*b.h/2,r*2,r*b.h);}
+    ctx.fillStyle='#d4594a';ctx.beginPath();ctx.ellipse(x+r*.3,y+r*.18,r*.22,r*.12,.3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#e8806a';ctx.beginPath();ctx.ellipse(x+r*.3,y+r*.16,r*.14,r*.07,.3,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle='#8a6040';ctx.lineWidth=.8;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- saturn: tan with tilted ring (back half behind, front half on top)
+  _saturn(ctx,x,y,r){
+    ctx.strokeStyle='#c8b870';ctx.lineWidth=r*.45;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.55,r*.26,0,Math.PI,0);ctx.stroke();
+    ctx.fillStyle='#e8d5a0';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    const sbands=[
+      {dy:-.35,h:.18,c:'#d4c080'},{dy:.05,h:.22,c:'#f0e8c0'},{dy:.35,h:.16,c:'#d4c080'},
+    ];
+    for(const b of sbands){ctx.fillStyle=b.c;ctx.fillRect(x-r,y+r*b.dy-r*b.h/2,r*2,r*b.h);}
+    ctx.restore();
+    ctx.strokeStyle='#c8b878';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle='#d4c898';ctx.lineWidth=r*.45;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.55,r*.26,0,0,Math.PI);ctx.stroke();
+    ctx.strokeStyle='#b0a060';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.55,r*.26,0,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- moon: gray with craters
+  _moon(ctx,x,y,r){
+    ctx.fillStyle='#c8c8c8';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#a0a0a0';
+    const craters=[[-.30,-.20,.18],[.25,.10,.15],[-.05,.35,.13],[.40,-.30,.11],[-.45,.25,.10],[.10,-.40,.09]];
+    for(const[dx,dy,rr]of craters){ctx.beginPath();ctx.arc(x+r*dx,y+r*dy,r*rr,0,Math.PI*2);ctx.fill();}
+    ctx.strokeStyle='#999';ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- wood: brown with darker grain arcs
+  _wood(ctx,x,y,r,c){
+    const base=blendHex(c,'#8B6914',.5);
+    ctx.fillStyle=base;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    ctx.strokeStyle=darken(base,.25);ctx.lineWidth=.7;
+    const grains=[
+      {dy:-.45, rx:r*.8}, {dy:-.15, rx:r*.95}, {dy:.12, rx:r*.85},
+      {dy:.35, rx:r*.75}, {dy:-.30, rx:r*.92}, {dy:.22, rx:r*.7},
+    ];
+    for(const g of grains){
+      ctx.beginPath();ctx.moveTo(x-g.rx,y+r*g.dy);
+      ctx.quadraticCurveTo(x,y+r*g.dy-g.rx*.15,x+g.rx,y+r*g.dy);ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle=darken(base,.35);ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- metal: silver with gradient sheen and highlight
+  _metal(ctx,x,y,r,c){
+    const base=blendHex(c,'#aaaaaa',.5);
+    const grad=ctx.createLinearGradient(x-r,y-r,x+r,y+r);
+    grad.addColorStop(0,lighten(base,.4));
+    grad.addColorStop(.35,base);
+    grad.addColorStop(.55,darken(base,.15));
+    grad.addColorStop(.75,lighten(base,.2));
+    grad.addColorStop(1,darken(base,.3));
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.5)';
+    ctx.beginPath();ctx.arc(x-r*.25,y-r*.25,r*.25,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=darken(base,.3);ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
+
+  // -- blob helper for earth continents
   _blob(ctx,cx,cy,rx,ry,idx){
-    const ang=[.12,-.18,.06,-.09,.22,-.14,.03,.30];
+    const ang=[.12,-.18,.06,-.09,.22,-.14,.03,.30,.08,-.05,.16,-.11];
     ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,ang[idx%ang.length],0,Math.PI*2);ctx.fill();
   },
 };
@@ -330,12 +485,11 @@ class Paddle {
 
 class Ball {
   constructor(x,y,s,color){
-    this.x=x;this.y=y;this.prevX=x;this.prevY=y;this.size=s;this.color=color;    this.skin='circle';this.dx=0;this.dy=0;this.speed=CONFIG.ballSpeedInitial;
+    this.x=x;this.y=y;this.prevX=x;this.prevY=y;this.size=s;this.color=color;this.skin='circle';this.dx=0;this.dy=0;this.speed=CONFIG.ballSpeedInitial;
   }
   reset(cw,ch,dir){
     this.x=cw/2;this.y=ch/2;this.prevX=this.x;this.prevY=this.y;this.speed=CONFIG.ballSpeedInitial;
-    const ang=Math.random()*.8-.4;
-    this.dx=Math.cos(ang)*this.speed*dir;this.dy=Math.sin(ang)*this.speed;
+    const ang=Math.random()*.8-.4;this.dx=Math.cos(ang)*this.speed*dir;this.dy=Math.sin(ang)*this.speed;
   }
   update(){this.prevX=this.x;this.prevY=this.y;this.x+=this.dx;this.y+=this.dy;}
   draw(ctx,t){BallRenderer.draw(ctx,this.x,this.y,this.size,this.color,this.skin,t);}
@@ -596,7 +750,6 @@ class MenuController {
     this._bindClicks();this._bindSliders();this._bindColorPickers();this._syncUI();
   }
 
-  /* ---- SHOW / HIDE ---- */
   showMainMenu(){
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
@@ -614,7 +767,6 @@ class MenuController {
   resumeGame(){this.game.paused=false;this.pauseOverlay.classList.add('hidden');this.themeSwitcher.classList.remove('hidden');}
   backToMenu(){this.game.paused=false;this.showMainMenu();}
 
-  /* ---- BUILD DYNAMIC UI ---- */
   _buildThemePresets(){
     const c=document.getElementById('themePresets');c.innerHTML='';
     for(const name of Object.keys(THEMES)){
@@ -647,7 +799,6 @@ class MenuController {
   }
   _highlightThemeDots(){document.querySelectorAll('.theme-dot').forEach(d=>d.classList.toggle('active',d.dataset.theme===settings.theme));}
 
-  /* ---- CLICK BINDINGS ---- */
   _bindClicks(){
     document.querySelectorAll('.menu-btn').forEach(b=>{b.addEventListener('click',e=>{const a=e.currentTarget.dataset.action;if(a)this._onAction(a);});});
   }
@@ -682,35 +833,17 @@ class MenuController {
     }
   }
 
-  /* ---- THEME / PADDLE / BALL PAGE HANDLERS ---- */
-  _onPresetClick(name){
-    this.game.switchTheme(name);
-    this._highlightThemeDots();this._syncThemePage();this._syncPaddlePage();this._syncBallPage();
-  }
-  _onPaddleStyleClick(side,key){
-    if(side==='left')settings.leftPaddleStyle=(key===this.game.getTheme().paddleStyle?null:key);
-    else settings.rightPaddleStyle=(key===this.game.getTheme().paddleStyle?null:key);
-    this._syncPaddlePage();
-  }
+  _onPresetClick(name){this.game.switchTheme(name);this._highlightThemeDots();this._syncThemePage();this._syncPaddlePage();this._syncBallPage();}
+  _onPaddleStyleClick(side,key){if(side==='left')settings.leftPaddleStyle=(key===this.game.getTheme().paddleStyle?null:key);else settings.rightPaddleStyle=(key===this.game.getTheme().paddleStyle?null:key);this._syncPaddlePage();}
   _onBallSkinClick(key){settings.ballSkin=key;this.game.ball.skin=key;this._syncBallPage();}
 
-  /* ---- SLIDER BINDINGS ---- */
   _bindSliders(){
-    document.getElementById('glowSlider').addEventListener('input',e=>{
-      settings.themeOverrideGlow=parseInt(e.target.value);document.getElementById('glowVal').textContent=e.target.value;applyThemeCSS(settings.theme);
-    });
-    document.getElementById('paddleWidthSlider').addEventListener('input',e=>{
-      settings.paddleWidth=parseInt(e.target.value);document.getElementById('paddleWidthVal').textContent=e.target.value;this.game._syncDimensions();
-    });
-    document.getElementById('paddleHeightSlider').addEventListener('input',e=>{
-      settings.paddleHeight=parseInt(e.target.value);document.getElementById('paddleHeightVal').textContent=e.target.value;this.game._syncDimensions();
-    });
-    document.getElementById('ballSizeSlider').addEventListener('input',e=>{
-      settings.ballSize=parseInt(e.target.value);document.getElementById('ballSizeVal').textContent=e.target.value;this.game.ball.size=settings.ballSize;this._renderBallPreview();
-    });
+    document.getElementById('glowSlider').addEventListener('input',e=>{settings.themeOverrideGlow=parseInt(e.target.value);document.getElementById('glowVal').textContent=e.target.value;applyThemeCSS(settings.theme);});
+    document.getElementById('paddleWidthSlider').addEventListener('input',e=>{settings.paddleWidth=parseInt(e.target.value);document.getElementById('paddleWidthVal').textContent=e.target.value;this.game._syncDimensions();});
+    document.getElementById('paddleHeightSlider').addEventListener('input',e=>{settings.paddleHeight=parseInt(e.target.value);document.getElementById('paddleHeightVal').textContent=e.target.value;this.game._syncDimensions();});
+    document.getElementById('ballSizeSlider').addEventListener('input',e=>{settings.ballSize=parseInt(e.target.value);document.getElementById('ballSizeVal').textContent=e.target.value;this.game.ball.size=settings.ballSize;this._renderBallPreview();});
   }
 
-  /* ---- COLOR PICKER BINDINGS ---- */
   _bindColorPickers(){
     document.getElementById('themeBg').addEventListener('input',e=>{settings.themeOverrideBg=e.target.value;applyThemeCSS(settings.theme);});
     document.getElementById('themeAccent').addEventListener('input',e=>{settings.themeOverrideAccent=e.target.value;applyThemeCSS(settings.theme);});
@@ -719,7 +852,6 @@ class MenuController {
     document.getElementById('ballColor').addEventListener('input',e=>{settings.customBall=e.target.value;this.game._applyThemeAndColors();this._renderBallPreview();});
   }
 
-  /* ---- PAGE SYNC ---- */
   _syncThemePage(){
     const t=THEMES[settings.theme];
     document.querySelectorAll('#themePresets .theme-opt').forEach(b=>b.classList.toggle('active',b.dataset.theme===settings.theme));
@@ -753,7 +885,6 @@ class MenuController {
     BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,c,settings.ballSkin,Date.now());
   }
 
-  /* ---- UTILITY ---- */
   _showSub(active){[this.menuMain,this.menuMode,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'vs AI ('+settings.difficulty.toUpperCase()+')':'PvP';

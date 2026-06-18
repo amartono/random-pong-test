@@ -199,36 +199,78 @@ const BallRenderer = {
     }
   },
 
-  // -- basketball: orange with black seam lines
+  // -- basketball: orange radial gradient, cross seams, pebble texture
   _basketball(ctx,x,y,r,c){
     const base=blendHex(c,'#e87400',.55);
-    ctx.fillStyle=base;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.5;
+    const grad=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.1,x,y,r);
+    grad.addColorStop(0,lighten(base,.15));grad.addColorStop(.7,base);grad.addColorStop(1,darken(base,.2));
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.6;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x-r,y);ctx.quadraticCurveTo(x,y-r*.5,x+r,y);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x,y+r);ctx.stroke();
+    // vertical arc seam
+    ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x,y-r);
+    ctx.bezierCurveTo(x+r*.28,y-r*.3,x+r*.28,y+r*.3,x,y+r);ctx.stroke();
+    // horizontal arc seam
+    ctx.beginPath();ctx.moveTo(x-r,y);ctx.quadraticCurveTo(x,y-r*.55,x+r,y);ctx.stroke();
+    // pebble dots (deterministic)
+    const dots=this._bballDots||(this._bballDots=Array.from({length:30},()=>({
+      a:Math.random()*Math.PI*2,d:Math.random()*.78+.07
+    })));
+    ctx.fillStyle='rgba(0,0,0,.08)';
+    for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.6,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: white with black pentagon pattern
+  // -- soccer: gradient white base, multiple black pentagon patches
   _soccer(ctx,x,y,r){
-    ctx.fillStyle='#f0f0f0';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    const grad=ctx.createRadialGradient(x-r*.25,y-r*.25,r*.05,x,y,r);
+    grad.addColorStop(0,'#ffffff');grad.addColorStop(.85,'#e8e8e8');grad.addColorStop(1,'#c8c8c8');
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.2;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-    const pr=r*.38;ctx.fillStyle='#1a1a1a';ctx.beginPath();
+    // center pentagon
+    const pr=r*.36;ctx.fillStyle='#1a1a1a';ctx.beginPath();
     for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2,px=x+Math.cos(a)*pr,py=y+Math.sin(a)*pr;
       if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}
-    ctx.closePath();ctx.fill();ctx.stroke();
-    for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2;
+    ctx.closePath();ctx.fill();
+    // 5 surrounding partial black patches
+    for(let j=0;j<5;j++){
+      const ca=Math.PI*2/5*j-Math.PI/2,cx=x+Math.cos(ca)*r*.65,cy=y+Math.sin(ca)*r*.65;
+      ctx.fillStyle='#1a1a1a';ctx.beginPath();
+      for(let i=0;i<4;i++){
+        const la=Math.PI*2/4*i+ca,px=cx+Math.cos(la)*r*.22,py=cy+Math.sin(la)*r*.22;
+        if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+      }
+      ctx.closePath();ctx.fill();
+    }
+    // seam lines from center to edges
+    ctx.strokeStyle='#555';ctx.lineWidth=.8;
+    for(let i=0;i<5;i++){
+      const a=Math.PI*2/5*i-Math.PI/2;
       ctx.beginPath();ctx.moveTo(x+Math.cos(a)*pr,y+Math.sin(a)*pr);
-      ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);ctx.stroke();}
+      ctx.lineTo(x+Math.cos(a)*r*.92,y+Math.sin(a)*r*.92);ctx.stroke();
+    }
   },
 
-  // -- tennis: yellow-green with white curved seam
+  // -- tennis: yellow-green gradient, dual seam curves, fuzzy edge
   _tennis(ctx,x,y,r,c){
     const base=blendHex(c,'#ccff00',.5);
-    ctx.fillStyle=base;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#fafaf0';ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.arc(x,y,r*.7,-.6,2.5);ctx.stroke();
+    const grad=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.08,x,y,r);
+    grad.addColorStop(0,lighten(base,.2));grad.addColorStop(.7,base);grad.addColorStop(1,darken(base,.15));
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    // seam line 1: top-right to bottom-left
+    ctx.strokeStyle='#fafaf0';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(x+r*.65,y-r*.55);
+    ctx.quadraticCurveTo(x,y,x-r*.65,y+r*.55);ctx.stroke();
+    // seam line 2: top-left to bottom-right
+    ctx.beginPath();ctx.moveTo(x-r*.65,y-r*.55);
+    ctx.quadraticCurveTo(x,y,x+r*.65,y+r*.55);ctx.stroke();
+    // fuzzy edge texture — small dashes around perimeter
+    ctx.strokeStyle='rgba(255,255,240,.35)';ctx.lineWidth=.6;
+    for(let i=0;i<16;i++){
+      const a=Math.PI*2/16*i,bx=x+Math.cos(a)*r*.9,by=y+Math.sin(a)*r*.9;
+      ctx.beginPath();ctx.moveTo(bx,by);
+      ctx.lineTo(x+Math.cos(a)*r*1.02,y+Math.sin(a)*r*1.02);ctx.stroke();
+    }
   },
 
   // -- 8-ball: black with white circle and "8"
@@ -305,22 +347,45 @@ const BallRenderer = {
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
-  // -- saturn: tan with tilted ring (back half behind, front half on top)
+  // -- saturn: multi-band ring with Cassini gap, planet shading, ring shadow
   _saturn(ctx,x,y,r){
-    ctx.strokeStyle='#c8b870';ctx.lineWidth=r*.45;
-    ctx.beginPath();ctx.ellipse(x,y,r*1.55,r*.26,0,Math.PI,0);ctx.stroke();
-    ctx.fillStyle='#e8d5a0';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    // back half of outer ring
+    ctx.strokeStyle='#c8b870';ctx.lineWidth=r*.22;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.62,r*.30,0,Math.PI,0);ctx.stroke();
+    // back half of inner ring
+    ctx.strokeStyle='#e0d0a8';ctx.lineWidth=r*.14;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,Math.PI,0);ctx.stroke();
+    // planet body with gradient
+    const pgrad=ctx.createRadialGradient(x-r*.2,y-r*.15,r*.05,x,y,r);
+    pgrad.addColorStop(0,'#f5edc8');pgrad.addColorStop(.6,'#e8d5a0');pgrad.addColorStop(1,'#c8b070');
+    ctx.fillStyle=pgrad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    // planet bands
     ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
     const sbands=[
-      {dy:-.35,h:.18,c:'#d4c080'},{dy:.05,h:.22,c:'#f0e8c0'},{dy:.35,h:.16,c:'#d4c080'},
+      {dy:-.50,h:.14,c:'#d4c080'},{dy:-.20,h:.16,c:'#f2e8c8'},
+      {dy:.05, h:.18,c:'#d8c888'},{dy:.25, h:.15,c:'#f0e0b8'},
+      {dy:.45, h:.14,c:'#d4c080'},
     ];
     for(const b of sbands){ctx.fillStyle=b.c;ctx.fillRect(x-r,y+r*b.dy-r*b.h/2,r*2,r*b.h);}
+    // ring shadow on planet
+    ctx.fillStyle='rgba(0,0,0,.08)';ctx.fillRect(x-r,y-r*.1,r*2,r*.2);
     ctx.restore();
-    ctx.strokeStyle='#c8b878';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-    ctx.strokeStyle='#d4c898';ctx.lineWidth=r*.45;
-    ctx.beginPath();ctx.ellipse(x,y,r*1.55,r*.26,0,0,Math.PI);ctx.stroke();
-    ctx.strokeStyle='#b0a060';ctx.lineWidth=1.2;
-    ctx.beginPath();ctx.ellipse(x,y,r*1.55,r*.26,0,0,Math.PI*2);ctx.stroke();
+    // planet outline
+    ctx.strokeStyle='#b8a060';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    // front half of inner ring
+    ctx.strokeStyle='#e0d0a8';ctx.lineWidth=r*.14;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,0,Math.PI);ctx.stroke();
+    // Cassini division outline
+    ctx.strokeStyle='rgba(0,0,0,.15)';ctx.lineWidth=.6;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.48,r*.26,0,0,Math.PI);ctx.stroke();
+    // front half of outer ring
+    ctx.strokeStyle='#d4c898';ctx.lineWidth=r*.22;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.62,r*.30,0,0,Math.PI);ctx.stroke();
+    // outer ring edge
+    ctx.strokeStyle='#b0a060';ctx.lineWidth=1;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.62,r*.30,0,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle='#b0a060';ctx.lineWidth=.8;
+    ctx.beginPath();ctx.ellipse(x,y,r*1.34,r*.22,0,0,Math.PI*2);ctx.stroke();
   },
 
   // -- moon: gray with craters

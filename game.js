@@ -199,56 +199,67 @@ const BallRenderer = {
     }
   },
 
-  // -- basketball: orange radial gradient, cross seams, pebble texture
+  // -- basketball: 4-panel pattern, equator + 2 vertical seams, pebble texture
   _basketball(ctx,x,y,r,c){
     const base=blendHex(c,'#e87400',.55);
     const grad=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.1,x,y,r);
     grad.addColorStop(0,lighten(base,.15));grad.addColorStop(.7,base);grad.addColorStop(1,darken(base,.2));
     ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.6;
-    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-    // vertical arc seam
-    ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x,y-r);
-    ctx.bezierCurveTo(x+r*.28,y-r*.3,x+r*.28,y+r*.3,x,y+r);ctx.stroke();
-    // horizontal arc seam
-    ctx.beginPath();ctx.moveTo(x-r,y);ctx.quadraticCurveTo(x,y-r*.55,x+r,y);ctx.stroke();
-    // pebble dots (deterministic)
-    const dots=this._bballDots||(this._bballDots=Array.from({length:30},()=>({
-      a:Math.random()*Math.PI*2,d:Math.random()*.78+.07
-    })));
-    ctx.fillStyle='rgba(0,0,0,.08)';
-    for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.6,0,Math.PI*2);ctx.fill();}
+    // equator line (horizontal, curved)
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(x-r,y);
+    ctx.quadraticCurveTo(x,y+r*.35,x+r,y);ctx.stroke();
+    // left panel seam (vertical, curved left)
+    ctx.beginPath();ctx.moveTo(x,y-r);
+    ctx.bezierCurveTo(x-r*.35,y-r*.2,x-r*.35,y+r*.2,x,y+r);ctx.stroke();
+    // right panel seam (vertical, curved right)
+    ctx.beginPath();ctx.moveTo(x,y-r);
+    ctx.bezierCurveTo(x+r*.35,y-r*.2,x+r*.35,y+r*.2,x,y+r);ctx.stroke();
+    // outline
+    ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    // pebble dots
+    const dots=this._bballDots||(this._bballDots=Array.from({length:40},()=>({a:Math.random()*Math.PI*2,d:.12+Math.random()*.78})));
+    ctx.fillStyle='rgba(0,0,0,.07)';
+    for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.5,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: gradient white base, multiple black pentagon patches
+  // -- soccer: truncated icosahedron pattern — center pentagon, 5 edge pentagons, seam lines
   _soccer(ctx,x,y,r){
-    const grad=ctx.createRadialGradient(x-r*.25,y-r*.25,r*.05,x,y,r);
-    grad.addColorStop(0,'#ffffff');grad.addColorStop(.85,'#e8e8e8');grad.addColorStop(1,'#c8c8c8');
-    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.2;
-    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-    // center pentagon
-    const pr=r*.36;ctx.fillStyle='#1a1a1a';ctx.beginPath();
-    for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2,px=x+Math.cos(a)*pr,py=y+Math.sin(a)*pr;
+    ctx.fillStyle='#f5f5f5';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1;
+    // center black pentagon
+    const pr=r*.35;ctx.fillStyle='#1a1a1a';ctx.beginPath();
+    for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2;const px=x+Math.cos(a)*pr,py=y+Math.sin(a)*pr;
       if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}
     ctx.closePath();ctx.fill();
-    // 5 surrounding partial black patches
+    // 5 outer black pentagons at edge
     for(let j=0;j<5;j++){
-      const ca=Math.PI*2/5*j-Math.PI/2,cx=x+Math.cos(ca)*r*.65,cy=y+Math.sin(ca)*r*.65;
-      ctx.fillStyle='#1a1a1a';ctx.beginPath();
-      for(let i=0;i<4;i++){
-        const la=Math.PI*2/4*i+ca,px=cx+Math.cos(la)*r*.22,py=cy+Math.sin(la)*r*.22;
+      const ca=Math.PI*2/5*j-Math.PI/2,or=r*.72; // center of outer pentagon
+      const ox=x+Math.cos(ca)*or,oy=y+Math.sin(ca)*or;
+      const opr=r*.16;ctx.fillStyle='#1a1a1a';ctx.beginPath();
+      for(let i=0;i<5;i++){
+        const a=Math.PI*2/5*i+ca+Math.PI/2;const px=ox+Math.cos(a)*opr,py=oy+Math.sin(a)*opr;
         if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
       }
       ctx.closePath();ctx.fill();
     }
-    // seam lines from center to edges
-    ctx.strokeStyle='#555';ctx.lineWidth=.8;
-    for(let i=0;i<5;i++){
-      const a=Math.PI*2/5*i-Math.PI/2;
-      ctx.beginPath();ctx.moveTo(x+Math.cos(a)*pr,y+Math.sin(a)*pr);
-      ctx.lineTo(x+Math.cos(a)*r*.92,y+Math.sin(a)*r*.92);ctx.stroke();
+    // seam lines: center pentagon vertices to outer pentagon inner vertices
+    ctx.strokeStyle='#555';ctx.lineWidth=.7;
+    for(let j=0;j<5;j++){
+      const ca=Math.PI*2/5*j-Math.PI/2;
+      const sx=x+Math.cos(ca)*pr,sy=y+Math.sin(ca)*pr; // center vertex
+      // two lines from each center vertex to each neighboring outer pentagon
+      for(let k=-1;k<=0;k++){
+        const oca=Math.PI*2/5*(j+k)-Math.PI/2,or=r*.72,oopr=r*.16;
+        const ox=x+Math.cos(oca)*or,oy=y+Math.sin(oca)*or;
+        // inner vertex of outer pentagon (facing center)
+        const ova=oca-Math.PI/2;
+        const ovx=ox+Math.cos(ova)*oopr,ovy=oy+Math.sin(ova)*oopr;
+        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ovx,ovy);ctx.stroke();
+      }
     }
+    // outline
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
   // -- tennis: yellow-green gradient, dual seam curves, fuzzy edge

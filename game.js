@@ -141,10 +141,10 @@ const PADDLE_STYLES = [
 ];
 
 const BALL_SKINS = [
-  { key:'square',label:'SQUARE' },{ key:'circle',label:'CIRCLE' },{ key:'ring',label:'RING' },
+  { key:'circle',label:'CIRCLE' },{ key:'ring',label:'RING' },
   { key:'basketball',label:'B-BALL' },{ key:'soccer',label:'SOCCER' },{ key:'tennis',label:'TENNIS' },
-  { key:'planet',label:'PLANET' },{ key:'moon',label:'MOON' },{ key:'star',label:'STAR' },
-  { key:'diamond',label:'DIAMOND' },{ key:'glow',label:'GLOW' },{ key:'pulse',label:'PULSE' },
+  { key:'planet',label:'PLANET' },{ key:'moon',label:'MOON' },
+  { key:'glow',label:'GLOW' },{ key:'pulse',label:'PULSE' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -155,7 +155,6 @@ const BallRenderer = {
   draw(ctx,x,y,s,c,skin,t){
     const h=s/2;
     switch(skin){
-      case'square':ctx.fillStyle=c;ctx.fillRect(x-h,y-h,s,s);break;
       case'circle':ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();break;
       case'ring':ctx.strokeStyle=c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,h-1.5,0,Math.PI*2);ctx.stroke();break;
       case'basketball':{
@@ -199,14 +198,6 @@ const BallRenderer = {
         for(const[dx,dy,rr]of craters){ctx.beginPath();ctx.arc(x+h*dx,y+h*dy,h*rr,0,Math.PI*2);ctx.fill();}
         ctx.strokeStyle=darken(c,.15);ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.stroke();break;
       }
-      case'star':{
-        ctx.fillStyle=c;ctx.beginPath();const or=h,ir=h*.45;
-        for(let i=0;i<10;i++){const r=i%2===0?or:ir,a=Math.PI*2/10*i-Math.PI/2;
-          const sx=x+Math.cos(a)*r,sy=y+Math.sin(a)*r;
-          if(i===0)ctx.moveTo(sx,sy);else ctx.lineTo(sx,sy);}
-        ctx.closePath();ctx.fill();break;
-      }
-      case'diamond':ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(x,y-h);ctx.lineTo(x+h,y);ctx.lineTo(x,y+h);ctx.lineTo(x-h,y);ctx.closePath();ctx.fill();break;
       case'glow':{
         const p=.7+Math.sin((t||Date.now())/400)*.15;
         const grad=ctx.createRadialGradient(x,y,h*.3,x,y,h*2.2*p);
@@ -220,7 +211,6 @@ const BallRenderer = {
         ctx.strokeStyle=lighten(c,.3);ctx.lineWidth=1.2;ctx.globalAlpha=.5;
         ctx.beginPath();ctx.arc(x,y,h*(sc+.15),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;break;
       }
-    }
   },
   _blob(ctx,cx,cy,rx,ry,idx){
     const ang=[.12,-.18,.06,-.09,.22,-.14,.03,.30];
@@ -339,7 +329,7 @@ class Paddle {
 
 class Ball {
   constructor(x,y,s,color){
-    this.x=x;this.y=y;this.prevX=x;this.prevY=y;this.size=s;this.color=color;this.skin='square';this.dx=0;this.dy=0;this.speed=CONFIG.ballSpeedInitial;
+    this.x=x;this.y=y;this.prevX=x;this.prevY=y;this.size=s;this.color=color;    this.skin='circle';this.dx=0;this.dy=0;this.speed=CONFIG.ballSpeedInitial;
   }
   reset(cw,ch,dir){
     this.x=cw/2;this.y=ch/2;this.prevX=this.x;this.prevY=this.y;this.speed=CONFIG.ballSpeedInitial;
@@ -408,7 +398,7 @@ const settings = {
   customPaddleRight:null,
   paddleWidth:14,
   paddleHeight:90,
-  ballSkin:'square',
+  ballSkin:'circle',
   customBall:null,
   ballSize:16,
 };
@@ -715,7 +705,7 @@ class MenuController {
       settings.paddleHeight=parseInt(e.target.value);document.getElementById('paddleHeightVal').textContent=e.target.value;this.game._syncDimensions();
     });
     document.getElementById('ballSizeSlider').addEventListener('input',e=>{
-      settings.ballSize=parseInt(e.target.value);document.getElementById('ballSizeVal').textContent=e.target.value;this.game.ball.size=settings.ballSize;
+      settings.ballSize=parseInt(e.target.value);document.getElementById('ballSizeVal').textContent=e.target.value;this.game.ball.size=settings.ballSize;this._renderBallPreview();
     });
   }
 
@@ -725,7 +715,7 @@ class MenuController {
     document.getElementById('themeAccent').addEventListener('input',e=>{settings.themeOverrideAccent=e.target.value;applyThemeCSS(settings.theme);});
     document.getElementById('paddleLeftColor').addEventListener('input',e=>{settings.customPaddleLeft=e.target.value;this.game._applyThemeAndColors();});
     document.getElementById('paddleRightColor').addEventListener('input',e=>{settings.customPaddleRight=e.target.value;this.game._applyThemeAndColors();});
-    document.getElementById('ballColor').addEventListener('input',e=>{settings.customBall=e.target.value;this.game._applyThemeAndColors();});
+    document.getElementById('ballColor').addEventListener('input',e=>{settings.customBall=e.target.value;this.game._applyThemeAndColors();this._renderBallPreview();});
   }
 
   /* ---- PAGE SYNC ---- */
@@ -751,6 +741,15 @@ class MenuController {
     document.querySelectorAll('#ballSkinGrid .ball-skin-btn').forEach(b=>b.classList.toggle('active',b.dataset.skin===settings.ballSkin));
     document.getElementById('ballColor').value=settings.customBall||t.ball;
     document.getElementById('ballSizeSlider').value=settings.ballSize;document.getElementById('ballSizeVal').textContent=settings.ballSize;
+    this._renderBallPreview();
+  }
+  _renderBallPreview(){
+    const cv=document.getElementById('ballPreview');
+    if(!cv||cv.classList.contains('hidden'))return;
+    const ctx=cv.getContext('2d'),s=cv.width;
+    ctx.clearRect(0,0,s,s);
+    const t=this.game.getTheme(),c=settings.customBall||t.ball;
+    BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,c,settings.ballSkin,Date.now());
   }
 
   /* ---- UTILITY ---- */

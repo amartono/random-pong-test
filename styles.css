@@ -499,6 +499,18 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 /* ================================================================== */
+/*  BALL PREVIEW                                                       */
+/* ================================================================== */
+
+.ball-preview-canvas {
+  border: 2px solid var(--btn-border);
+  border-radius: 50%;
+  background: var(--canvas-bg);
+  margin-bottom: 4px;
+  transition: border-color 0.3s, background 0.3s;
+}
+
+/* ================================================================== */
 /*  UTILITY                                                            */
 /* ================================================================== */
 

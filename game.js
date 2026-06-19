@@ -28,6 +28,8 @@ const POWERUP_TYPES = [
   { id:'shield',   label:'S',  color:'#ffaa00',dur:0 },
   { id:'speedUp',  label:'>>', color:'#ff4444',dur:300 },
   { id:'slowOpp',  label:'<<', color:'#aa44ff',dur:480 },
+  { id:'dp',       label:'DP', color:'#ffdd00',dur:0 },
+  { id:'x3',       label:'x3', color:'#ff66ff',dur:0 },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -778,8 +780,9 @@ class PongGame {
     this.state='idle';this.active=false;this.paused=false;this.serveDirection=1;this.serveTimer=0;this.winMessage='';
     // power-up state
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
-    this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0};
+    this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;
+    this.multiBalls=[];
     this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
     this._loop=this._loop.bind(this);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,0);this._loop(0);
   }
@@ -820,8 +823,9 @@ class PongGame {
     this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);
     this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,1);    this.particles=[];this.serveDirection=Math.random()<.5?1:-1;
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
-    this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0};
+    this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;
+    this.multiBalls=[];
   }
 
   transition(newState){
@@ -861,37 +865,67 @@ class PongGame {
     if(this.ai){this.ai.update(this.paddleRight,this.ball,CONFIG.canvasHeight);if(this.puEffects.rSlow>0)this.paddleRight.vy*=.4;}
     this.paddleRight.update(CONFIG.canvasHeight);
     this.ball.update();
-    const bw=this.ball.size/2;
-    if(this.ball.y-bw<=0){this.ball.y=bw;this.ball.dy=Math.abs(this.ball.dy);if(settings.soundEnabled)this.sound.play('wall');}
-    if(this.ball.y+bw>=CONFIG.canvasHeight){this.ball.y=CONFIG.canvasHeight-bw;this.ball.dy=-Math.abs(this.ball.dy);if(settings.soundEnabled)this.sound.play('wall');}
-    if(this.ball.dx<0&&this.ball.x-bw<=this.paddleLeft.x+this.paddleLeft.width&&this.ball.x-bw>=this.paddleLeft.x){
-      const ly=this.paddleLeft.y-(this.puEffects.lBig>0?this.paddleLeft.height*.25:0);
-      const lh=this.paddleLeft.height+(this.puEffects.lBig>0?this.paddleLeft.height*.5:0);
-      if(this.ball.y+bw>=ly&&this.ball.y-bw<=ly+lh)this._hitPaddle(this.paddleLeft,1);
-    }
-    if(this.ball.dx>0&&this.ball.x+bw>=this.paddleRight.x&&this.ball.x+bw<=this.paddleRight.x+this.paddleRight.width){
-      const ry=this.paddleRight.y-(this.puEffects.rBig>0?this.paddleRight.height*.25:0);
-      const rh=this.paddleRight.height+(this.puEffects.rBig>0?this.paddleRight.height*.5:0);
-      if(this.ball.y+bw>=ry&&this.ball.y-bw<=ry+rh)this._hitPaddle(this.paddleRight,-1);
-    }
-    if(this.ball.x+bw<0){
-      if(this.puEffects.lShield>0){this.puEffects.lShield--;this._shieldBreak('left');this.ball.dx=Math.abs(this.ball.dx);this.ball.x=bw;if(settings.soundEnabled)this.sound.play('paddle');}
-      else{this.paddleRight.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
-    }
-    if(this.ball.x-bw>CONFIG.canvasWidth){
-      if(this.puEffects.rShield>0){this.puEffects.rShield--;this._shieldBreak('right');this.ball.dx=-Math.abs(this.ball.dx);this.ball.x=CONFIG.canvasWidth-bw;if(settings.soundEnabled)this.sound.play('paddle');}
-      else{this.paddleLeft.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
+    for(const b of this.multiBalls)b.update();
+    // ball-ball collisions
+    for(const b of this.multiBalls)this._ballCollision(this.ball,b);
+    for(let i=0;i<this.multiBalls.length;i++)
+      for(let j=i+1;j<this.multiBalls.length;j++)this._ballCollision(this.multiBalls[i],this.multiBalls[j]);
+    // check main ball
+    if(this._checkBall(this.ball)&&this.multiBalls.length>0){const b=this.multiBalls.pop();this.ball.x=b.x;this.ball.y=b.y;this.ball.dx=b.dx;this.ball.dy=b.dy;this.ball.speed=b.speed;this.ball.spin=b.spin;this.ball.angle=b.angle;}
+    // check multi balls
+    for(let i=this.multiBalls.length-1;i>=0;i--){if(this._checkBall(this.multiBalls[i]))this.multiBalls.splice(i,1);}
+  }
+  _ballCollision(a,b){
+    const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy),min=(a.size+b.size)/2;
+    if(dist<min&&dist>0){
+      const nx=dx/dist,ny=dy/dist,overlap=(min-dist)/2;
+      a.x-=nx*overlap;a.y-=ny*overlap;b.x+=nx*overlap;b.y+=ny*overlap;
+      const rv=a.dx*nx+a.dy*ny-b.dx*nx-b.dy*ny;
+      if(rv>0){a.dx-=rv*nx;a.dy-=rv*ny;b.dx+=rv*nx;b.dy+=rv*ny;}
     }
   }
-  _hitPaddle(paddle,dir){
-    const hp=(this.ball.y-paddle.y)/paddle.height,cl=Math.max(.05,Math.min(.95,hp)),ang=(cl-.5)*(Math.PI/3);
-    this.ball.speed=Math.min(this.ball.speed+CONFIG.ballSpeedIncrement,CONFIG.ballSpeedMax)*this.ballSpeedMod;
-    this.ball.dx=Math.cos(ang)*this.ball.speed*dir;this.ball.dy=Math.sin(ang)*this.ball.speed;
-    this.ball.x=paddle.x+(dir>0?paddle.width+this.ball.size/2:-this.ball.size/2);
+  _checkBall(b){
+    const bw=b.size/2;
+    // wall bounces
+    if(b.y-bw<=0){b.y=bw;b.dy=Math.abs(b.dy);if(settings.soundEnabled)this.sound.play('wall');}
+    if(b.y+bw>=CONFIG.canvasHeight){b.y=CONFIG.canvasHeight-bw;b.dy=-Math.abs(b.dy);if(settings.soundEnabled)this.sound.play('wall');}
+    // left paddle
+    if(b.dx<0&&b.x-bw<=this.paddleLeft.x+this.paddleLeft.width&&b.x-bw>=this.paddleLeft.x){
+      const ly=this.paddleLeft.y-(this.puEffects.lBig>0?this.paddleLeft.height*.25:0);
+      const lh=this.paddleLeft.height+(this.puEffects.lBig>0?this.paddleLeft.height*.5:0);
+      if(b.y+bw>=ly&&b.y-bw<=ly+lh)this._hitBall(b,this.paddleLeft,1);
+    }
+    // right paddle
+    if(b.dx>0&&b.x+bw>=this.paddleRight.x&&b.x+bw<=this.paddleRight.x+this.paddleRight.width){
+      const ry=this.paddleRight.y-(this.puEffects.rBig>0?this.paddleRight.height*.25:0);
+      const rh=this.paddleRight.height+(this.puEffects.rBig>0?this.paddleRight.height*.5:0);
+      if(b.y+bw>=ry&&b.y-bw<=ry+rh)this._hitBall(b,this.paddleRight,-1);
+    }
+    // goals
+    if(b.x+bw<0){
+      if(this.puEffects.lShield>0){this.puEffects.lShield--;this._shieldBreak('left');b.dx=Math.abs(b.dx);b.x=bw;if(settings.soundEnabled)this.sound.play('paddle');}
+      else{this._score('right');return true;}
+    }
+    if(b.x-bw>CONFIG.canvasWidth){
+      if(this.puEffects.rShield>0){this.puEffects.rShield--;this._shieldBreak('right');b.dx=-Math.abs(b.dx);b.x=CONFIG.canvasWidth-bw;if(settings.soundEnabled)this.sound.play('paddle');}
+      else{this._score('left');return true;}
+    }
+    return false;
+  }
+  _hitBall(b,paddle,dir){
+    const hp=(b.y-paddle.y)/paddle.height,cl=Math.max(.05,Math.min(.95,hp)),ang=(cl-.5)*(Math.PI/3);
+    b.speed=Math.min(b.speed+CONFIG.ballSpeedIncrement,CONFIG.ballSpeedMax)*this.ballSpeedMod;
+    b.dx=Math.cos(ang)*b.speed*dir;b.dy=Math.sin(ang)*b.speed;
+    b.x=paddle.x+(dir>0?paddle.width+b.size/2:-b.size/2);
     this.lastHitBy=dir>0?'left':'right';
-    // spin from paddle hit
-    this.ball.spin=(cl-.5)*this.ball.speed*.12;
+    b.spin=(cl-.5)*b.speed*.12;
     if(settings.soundEnabled)this.sound.play('paddle');
+  }
+  _score(side){
+    if(side==='right'){this.paddleRight.score+=this.puEffects.dpRight?2:1;this.puEffects.dpRight=false;}
+    else{this.paddleLeft.score+=this.puEffects.dpLeft?2:1;this.puEffects.dpLeft=false;}
+    this.serveDirection=Math.random()<.5?1:-1;
+    if(this.multiBalls.length===0)this.transition('goal');
   }
   _updateGoal(){if(++this.serveTimer>90)this.transition('serving');}
   _updateOver(){if(this.input.isDown(' '))this.restart();}
@@ -909,8 +943,9 @@ class PongGame {
     if(!this.powerUp){
       if(--this.puSpawnTimer<=0)this._spawnPowerUp();
     }else{
-      const dx=this.ball.x-this.powerUp.x,dy=this.ball.y-this.powerUp.y;
-      if(Math.sqrt(dx*dx+dy*dy)<this.ball.size/2+10){
+      const pu=this.powerUp;
+      const checkBall=(b)=>{const dx=b.x-pu.x,dy=b.y-pu.y;return Math.sqrt(dx*dx+dy*dy)<b.size/2+10;};
+      if(checkBall(this.ball)||this.multiBalls.some(checkBall)){
         this._applyPowerUp(this.powerUp.type);
         this.powerUp=null;this.puSpawnTimer=300+Math.random()*600;
       }
@@ -928,7 +963,18 @@ class PongGame {
       case'shield':if(p==='left')this.puEffects.lShield++;else this.puEffects.rShield++;break;
       case'speedUp':this.puEffects.ballSpd=type.dur;break;
       case'slowOpp':if(o==='left')this.puEffects.lSlow=type.dur;else this.puEffects.rSlow=type.dur;break;
+      case'dp':if(p==='left')this.puEffects.dpLeft=true;else this.puEffects.dpRight=true;break;
+      case'x3':this._activateMultiBall();break;
     }
+  }
+  _activateMultiBall(){
+    const a=this.ball,b1=new Ball(a.x,a.y,a.size,a.color);
+    b1.skin=a.skin;const ang=Math.atan2(a.dy,a.dx),sp=a.speed;
+    b1.dx=Math.cos(ang+.5)*sp;b1.dy=Math.sin(ang+.5)*sp;b1.angle=a.angle;b1.spin=a.spin;
+    const b2=new Ball(a.x,a.y,a.size,a.color);
+    b2.skin=a.skin;b2.dx=Math.cos(ang-.5)*sp;b2.dy=Math.sin(ang-.5)*sp;b2.angle=a.angle;b2.spin=a.spin;
+    a.dx=Math.cos(ang)*sp;a.dy=Math.sin(ang)*sp;
+    this.multiBalls.push(b1,b2);
   }
   _updateEffects(){
     const e=this.puEffects;
@@ -965,6 +1011,7 @@ class PongGame {
       PaddleRenderer.draw(ctx,this.paddleRight.x,iy-ex,this.paddleRight.width,this.paddleRight.height+ex*2,this.paddleRight.color,this.getRightPaddleStyle());
     }
     this.ball.drawInterpolated(ctx,ts,alpha);
+    for(const b of this.multiBalls)b.drawInterpolated(ctx,ts,alpha);
     for(const p of this.particles)p.draw(ctx,alpha);
     // power-up orb
     if(this.powerUp&&this.state==='playing'){

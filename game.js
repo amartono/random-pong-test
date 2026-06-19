@@ -992,7 +992,7 @@ class PongGame {
   /* ---- drawing ---- */
   _draw(ts){
     const ctx=this.ctx,w=CONFIG.canvasWidth,h=CONFIG.canvasHeight,theme=this.getTheme();
-    const alpha=Math.min(this.accumulator/this.tickRate,1);
+    const alpha=(this.state==='playing'&&!this.paused)?Math.min(this.accumulator/this.tickRate,1):1;
     ctx.fillStyle=settings.themeOverrideBg||theme.bg;ctx.fillRect(0,0,w,h);
     ctx.strokeStyle=theme.centerLine;ctx.lineWidth=2;
     switch(theme.lineStyle){case'dashed':ctx.setLineDash([8,12]);break;case'dotted':ctx.setLineDash([3,8]);break;default:ctx.setLineDash([]);}

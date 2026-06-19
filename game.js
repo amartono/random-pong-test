@@ -26,7 +26,7 @@ const CONFIG = {
 const MAPS = {
   classic: {
     name:'CLASSIC',
-    draw(ctx,w,h,t){},
+    draw(ctx,w,h){}, // canvas CSS border is the wall
     checkWall(b,w,h){
       const hs=b.size/2;
       if(b.y-hs<=0){b.y=hs;b.dy=Math.abs(b.dy);return true;}
@@ -37,55 +37,44 @@ const MAPS = {
   },
   oval: {
     name:'OVAL',
-    draw(ctx,w,h,t){
-      ctx.fillStyle=t.bg;ctx.fillRect(0,0,w,h);
-      ctx.strokeStyle='#555';ctx.lineWidth=3;
-      const cx=w/2,cy=h/2,rx=w/2-20,ry=h/2-60;
-      ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
-      ctx.strokeStyle=t.centerLine;ctx.lineWidth=2;ctx.setLineDash([8,12]);
-      ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,h);ctx.stroke();ctx.setLineDash([]);
-      ctx.fillStyle='#000';ctx.fillRect(0,cy-16,16,32);ctx.fillRect(w-16,cy-16,16,32);
+    draw(ctx,w,h){
+      const cx=w/2,cy=h/2,rx=w/2-4,ry=h/2-4;
+      ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+      // goal gaps at left and right
+      ctx.fillStyle='#111';ctx.fillRect(0,cy-18,8,36);ctx.fillRect(w-8,cy-18,8,36);
     },
     checkWall(b,w,h){
-      const hs=b.size/2,cx=w/2,cy=h/2,rx=w/2-20-hs,ry=h/2-60-hs;
+      const hs=b.size/2,cx=w/2,cy=h/2,rx=w/2-4-hs,ry=h/2-4-hs;
       const dx=b.x-cx,dy=b.y-cy;
       const f=(dx*dx)/(rx*rx)+(dy*dy)/(ry*ry);
-      if(f>1){
-        const nx=dx/(rx*rx),ny=dy/(ry*ry),nl=Math.sqrt(nx*nx+ny*ny);
-        if(nl>1e-6){const ux=nx/nl,uy=ny/nl;const d=b.dx*ux+b.dy*uy;if(d<0){b.dx-=2*d*ux;b.dy-=2*d*uy;}
-          const sf=1/Math.sqrt(f)*.94;b.x=cx+dx*sf;b.y=cy+dy*sf;}return true;
-      }return false;
+      if(f>1){const nx=dx/(rx*rx),ny=dy/(ry*ry),nl=Math.sqrt(nx*nx+ny*ny);if(nl>0){const un=nx/nl,vn=ny/nl;const dot=b.dx*un+b.dy*vn;if(dot<0){b.dx-=2*dot*un;b.dy-=2*dot*vn;}b.x=cx+dx/Math.sqrt(f)*.98;b.y=cy+dy/Math.sqrt(f)*.98;}return true;}
+      return false;
     },
     checkGoal(b,w){
       const hs=b.size/2,cy=CONFIG.canvasHeight/2;
-      if(b.x+hs<6&&Math.abs(b.y-cy)<20)return'right';
-      if(b.x-hs>w-6&&Math.abs(b.y-cy)<20)return'left';
+      if(b.x+hs<2&&Math.abs(b.y-cy)<22)return'right';
+      if(b.x-hs>w-2&&Math.abs(b.y-cy)<22)return'left';
       return null;
     },
   },
   circle: {
     name:'CIRCLE',
-    draw(ctx,w,h,t){
-      ctx.fillStyle=t.bg;ctx.fillRect(0,0,w,h);
-      ctx.strokeStyle='#555';ctx.lineWidth=3;
-      const cx=w/2,cy=h/2,r=Math.min(w,h)/2-20;
-      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
-      ctx.strokeStyle=t.centerLine;ctx.lineWidth=2;ctx.setLineDash([8,12]);
-      ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,h);ctx.stroke();ctx.setLineDash([]);
-      ctx.fillStyle='#000';ctx.fillRect(0,cy-14,12,28);ctx.fillRect(w-12,cy-14,12,28);
+    draw(ctx,w,h){
+      const cx=w/2,cy=h/2,rx=w/2-6,ry=h/2-6;
+      ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+      ctx.fillStyle='#111';ctx.fillRect(0,cy-16,8,32);ctx.fillRect(w-8,cy-16,8,32);
     },
     checkWall(b,w,h){
-      const hs=b.size/2,cx=w/2,cy=h/2,r=Math.min(w,h)/2-20-hs;
-      const dx=b.x-cx,dy=b.y-cy,dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist>r&&r>0){
-        const ux=dx/dist,uy=dy/dist;const d=b.dx*ux+b.dy*uy;if(d<0){b.dx-=2*d*ux;b.dy-=2*d*uy;}
-        b.x=cx+ux*r*.96;b.y=cy+uy*r*.96;return true;
-      }return false;
+      const hs=b.size/2,cx=w/2,cy=h/2,rx=w/2-6-hs,ry=h/2-6-hs;
+      const dx=b.x-cx,dy=b.y-cy;
+      const f=(dx*dx)/(rx*rx)+(dy*dy)/(ry*ry);
+      if(f>1){const nx=dx/(rx*rx),ny=dy/(ry*ry),nl=Math.sqrt(nx*nx+ny*ny);if(nl>0){const un=nx/nl,vn=ny/nl;const dot=b.dx*un+b.dy*vn;if(dot<0){b.dx-=2*dot*un;b.dy-=2*dot*vn;}b.x=cx+dx/Math.sqrt(f)*.98;b.y=cy+dy/Math.sqrt(f)*.98;}return true;}
+      return false;
     },
     checkGoal(b,w){
       const hs=b.size/2,cy=CONFIG.canvasHeight/2;
-      if(b.x+hs<6&&Math.abs(b.y-cy)<16)return'right';
-      if(b.x-hs>w-6&&Math.abs(b.y-cy)<16)return'left';
+      if(b.x+hs<2&&Math.abs(b.y-cy)<18)return'right';
+      if(b.x-hs>w-2&&Math.abs(b.y-cy)<18)return'left';
       return null;
     },
   },
@@ -94,9 +83,10 @@ const MAPS = {
     bumpers:[],
     init(w,h){
       this.bumpers=[];
-      for(let i=0;i<8;i++){this.bumpers.push({x:120+Math.random()*(w-240),y:60+Math.random()*(h-120),r:14+Math.random()*10,c:'#'+['ff4444','ffaa00','44ff44','44aaff','ff44ff','ff8844','44ffaa','aa44ff'][i]});}
+      for(let i=0;i<8;i++){this.bumpers.push({x:100+Math.random()*(w-200),y:60+Math.random()*(h-120),r:14+Math.random()*12,c:'#'+['ff4444','ffaa00','44ff44','44aaff','ff44ff'][i%5]});}
     },
-    draw(ctx,w,h,t){
+    draw(ctx,w,h){
+      ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.strokeRect(0,0,w,h);
       if(!this.bumpers.length)this.init(w,h);
       for(const b of this.bumpers){
         ctx.fillStyle=b.c;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
@@ -111,7 +101,8 @@ const MAPS = {
       for(const p of this.bumpers){
         const dx=b.x-p.x,dy=b.y-p.y,dist=Math.sqrt(dx*dx+dy*dy),min=p.r+hs;
         if(dist<min&&dist>0){const nx=dx/dist,ny=dy/dist;b.x=p.x+nx*min;b.y=p.y+ny*min;const dot=b.dx*nx+b.dy*ny;if(dot<0){b.dx-=2*dot*nx;b.dy-=2*dot*ny;}return true;}
-      }return false;
+      }
+      return false;
     },
     checkGoal(b,w){const hs=b.size/2;if(b.x+hs<0)return'right';if(b.x-hs>w)return'left';return null;},
   },
@@ -1090,13 +1081,10 @@ class PongGame {
     const alpha=Math.min(this.accumulator/this.tickRate,1);
     ctx.fillStyle=settings.themeOverrideBg||theme.bg;ctx.fillRect(0,0,w,h);
     // arena map
-    MAPS[settings.currentMap].draw(ctx,w,h,theme);
-    // center line (classic & pinball only — oval/circle draw their own)
-    if(settings.currentMap==='classic'||settings.currentMap==='pinball'){
-      ctx.strokeStyle=theme.centerLine;ctx.lineWidth=2;
-      switch(theme.lineStyle){case'dashed':ctx.setLineDash([8,12]);break;case'dotted':ctx.setLineDash([3,8]);break;default:ctx.setLineDash([]);}
-      ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();ctx.setLineDash([]);
-    }
+    MAPS[settings.currentMap].draw(ctx,w,h);
+    ctx.strokeStyle=theme.centerLine;ctx.lineWidth=2;
+    switch(theme.lineStyle){case'dashed':ctx.setLineDash([8,12]);break;case'dotted':ctx.setLineDash([3,8]);break;default:ctx.setLineDash([]);}
+    ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();ctx.setLineDash([]);
     this.paddleLeft.drawInterpolated(ctx,this.getLeftPaddleStyle(),alpha);
     this.paddleRight.drawInterpolated(ctx,this.getRightPaddleStyle(),alpha);
     // big paddle overlay — draw expanded paddle
@@ -1218,7 +1206,7 @@ class MenuController {
     const g=document.getElementById('mapOptions');g.innerHTML='';
     for(const[key,m]of Object.entries(MAPS)){
       const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.map=key;b.textContent=m.name;
-      b.addEventListener('click',()=>{settings.currentMap=key;this.game.canvas.style.border=(key==='classic'||key==='pinball')?'':'none';this._syncMapPage();});g.appendChild(b);
+      b.addEventListener('click',()=>{settings.currentMap=key;this._syncMapPage();});g.appendChild(b);
     }
   }
   _buildThemeDots(){
@@ -1344,7 +1332,6 @@ class MenuController {
 (function main(){
   const canvas=document.getElementById('gameCanvas'),sl=document.getElementById('scoreLeft'),sr=document.getElementById('scoreRight');
   const game=new PongGame(canvas,sl,sr),menu=new MenuController(game);
-  canvas.style.border=(settings.currentMap==='classic'||settings.currentMap==='pinball')?'':'none';
   menu.showMainMenu();game._applyThemeAndColors();applyThemeCSS(settings.theme);menu._highlightThemeDots();
 
   window.addEventListener('keydown',e=>{

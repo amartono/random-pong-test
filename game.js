@@ -224,52 +224,57 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: full connected panels — large black pentagons separated by white hexagons sharing edges
+  // -- soccer: full connected panels — black pentagons, white hexagons edge-to-edge, continuous seam grid
   _soccer(ctx,x,y,r){
     const TAU=Math.PI*2, N=5;
     const va=Array.from({length:N},(_,i)=>TAU/N*i-Math.PI/2);
     // center pentagon vertices
-    const cpr=r*.28;
+    const cpr=r*.26;
     const cv=va.map(a=>({x:x+Math.cos(a)*cpr,y:y+Math.sin(a)*cpr}));
-    // outer pentagon centers (at same angles as center vertices, further out)
-    const od=r*.62;
+    // outer pentagon centers and vertex arrays
+    const od=r*.60;
     const oc=va.map(a=>({x:x+Math.cos(a)*od,y:y+Math.sin(a)*od, a}));
-    const opr=r*.16;
-    // build outer pentagon vertex arrays (rotated so one vertex faces inward toward center)
-    const ov=oc.map(o=>{
-      return Array.from({length:N},(_,j)=>({
-        x:o.x+Math.cos(o.a+Math.PI+TAU/N*j)*opr,
-        y:o.y+Math.sin(o.a+Math.PI+TAU/N*j)*opr,
-      }));
-    });
+    const opr=r*.15;
+    const ov=oc.map(o=>Array.from({length:N},(_,j)=>({
+      x:o.x+Math.cos(o.a+Math.PI+TAU/N*j)*opr,
+      y:o.y+Math.sin(o.a+Math.PI+TAU/N*j)*opr,
+    })));
 
-    // draw white hexagons — one bridging each center pentagon edge to its two adjacent outer pentagons
-    ctx.fillStyle='#f5f5f5';
+    // fill entire ball white
+    ctx.fillStyle='#f5f5f5';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
+
+    // draw inner white hexagons — each bridges center edge to two outer pentagons
     for(let i=0;i<N;i++){
       const i2=(i+1)%N;
-      // center edge vertices
       const e1=cv[i], e2=cv[i2];
-      // outer pentagon vertex closest to e1
-      const o1=ov[i], o2=ov[i2];
-      // vertices on outer pentagons facing the center edge
-      const o1a=o1[3], o1b=o1[4]; // two vertices pointing toward this edge
-      const o2a=o2[1], o2b=o2[0];
-      // draw hexagon: e1 → o1a → o1b → o2a → o2b → e2 → back
       ctx.beginPath();
       ctx.moveTo(e1.x,e1.y);
-      ctx.lineTo(o1a.x,o1a.y);ctx.lineTo(o1b.x,o1b.y);
-      ctx.lineTo(o2a.x,o2a.y);ctx.lineTo(o2b.x,o2b.y);
+      ctx.lineTo(ov[i][3].x,ov[i][3].y);ctx.lineTo(ov[i][4].x,ov[i][4].y);
+      ctx.lineTo(ov[i2][1].x,ov[i2][1].y);ctx.lineTo(ov[i2][0].x,ov[i2][0].y);
       ctx.lineTo(e2.x,e2.y);
+      ctx.closePath();ctx.fill();
+    }
+
+    // draw outer white hexagon fragments — between adjacent outer pentagons, extended to ball rim
+    for(let i=0;i<N;i++){
+      const i2=(i+1)%N;
+      const midA=(va[i]+va[i2])/2;
+      const rim=Math.min(r-1, od+opr*1.5);
+      const rx=x+Math.cos(midA)*rim, ry=y+Math.sin(midA)*rim;
+      ctx.beginPath();
+      ctx.moveTo(ov[i][2].x,ov[i][2].y);
+      ctx.lineTo(ov[i][1].x,ov[i][1].y);
+      ctx.lineTo(rx,ry);
+      ctx.lineTo(ov[i2][3].x,ov[i2][3].y);
+      ctx.lineTo(ov[i2][4].x,ov[i2][4].y);
       ctx.closePath();ctx.fill();
     }
 
     // draw black pentagons
     ctx.fillStyle='#1a1a1a';
-    // center
     ctx.beginPath();
     for(let i=0;i<N;i++){if(i===0)ctx.moveTo(cv[i].x,cv[i].y);else ctx.lineTo(cv[i].x,cv[i].y);}
     ctx.closePath();ctx.fill();
-    // 5 outer
     for(const o of ov){
       ctx.beginPath();
       for(let j=0;j<N;j++){if(j===0)ctx.moveTo(o[j].x,o[j].y);else ctx.lineTo(o[j].x,o[j].y);}
@@ -277,7 +282,7 @@ const BallRenderer = {
     }
 
     // seam lines — all polygon edges
-    ctx.strokeStyle='#555';ctx.lineWidth=.7;
+    ctx.strokeStyle='#555';ctx.lineWidth=.6;
     // center pentagon
     ctx.beginPath();
     for(let i=0;i<N;i++){if(i===0)ctx.moveTo(cv[i].x,cv[i].y);else ctx.lineTo(cv[i].x,cv[i].y);}
@@ -288,31 +293,31 @@ const BallRenderer = {
       for(let j=0;j<N;j++){if(j===0)ctx.moveTo(o[j].x,o[j].y);else ctx.lineTo(o[j].x,o[j].y);}
       ctx.closePath();ctx.stroke();
     }
-    // hexagon edges (center-vertex to outer-vertex connections)
+    // inner hexagon seams: center vertices to outer pentagon vertices
     for(let i=0;i<N;i++){
       const i2=(i+1)%N;
-      const e1=cv[i], e2=cv[i2];
-      const o1a=ov[i][3], o1b=ov[i][4];
-      const o2a=ov[i2][1], o2b=ov[i2][0];
       ctx.beginPath();
-      ctx.moveTo(e1.x,e1.y);ctx.lineTo(o1a.x,o1a.y);
-      ctx.moveTo(o1b.x,o1b.y);ctx.lineTo(o2a.x,o2a.y);
-      ctx.moveTo(o2b.x,o2b.y);ctx.lineTo(e2.x,e2.y);
+      ctx.moveTo(cv[i].x,cv[i].y);ctx.lineTo(ov[i][3].x,ov[i][3].y);
+      ctx.moveTo(ov[i][4].x,ov[i][4].y);ctx.lineTo(ov[i2][1].x,ov[i2][1].y);
+      ctx.moveTo(ov[i2][0].x,ov[i2][0].y);ctx.lineTo(cv[i2].x,cv[i2].y);
       ctx.stroke();
     }
-    // outer pentagon inner edges (the two vertices facing center)
-    for(const o of ov){
-      ctx.beginPath();ctx.moveTo(o[3].x,o[3].y);ctx.lineTo(o[4].x,o[4].y);ctx.stroke();
-      ctx.beginPath();ctx.moveTo(o[0].x,o[0].y);ctx.lineTo(o[1].x,o[1].y);ctx.stroke();
-    }
-    // inter-outer-pentagon seams
+    // outer hexagon seams: outward lines and inter-pentagon connections
     for(let i=0;i<N;i++){
       const i2=(i+1)%N;
-      const o1=ov[i], o2=ov[i2];
-      ctx.beginPath();ctx.moveTo(o1[4].x,o1[4].y);ctx.lineTo(o2[0].x,o2[0].y);ctx.stroke();
-      ctx.beginPath();ctx.moveTo(o1[0].x,o1[0].y);ctx.lineTo(o1[3].x,o1[3].y);ctx.stroke();
+      const midA=(va[i]+va[i2])/2;
+      const rim=Math.min(r-1, od+opr*1.5);
+      const rx=x+Math.cos(midA)*rim, ry=y+Math.sin(midA)*rim;
+      ctx.beginPath();
+      ctx.moveTo(ov[i][1].x,ov[i][1].y);ctx.lineTo(rx,ry);ctx.lineTo(ov[i2][3].x,ov[i2][3].y);
+      ctx.stroke();
     }
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=.9;
+    // outer pentagon edges facing outward
+    for(const o of ov){
+      ctx.beginPath();ctx.moveTo(o[1].x,o[1].y);ctx.lineTo(o[2].x,o[2].y);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(o[3].x,o[3].y);ctx.lineTo(o[4].x,o[4].y);ctx.stroke();
+    }
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=.8;
     ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
   },
 

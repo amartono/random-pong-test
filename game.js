@@ -22,6 +22,14 @@ const CONFIG = {
   winMargin: 2,
 };
 
+/* ---- power-up types ---- */
+const POWERUP_TYPES = [
+  { id:'bigPaddle',label:'BIG',color:'#44aaff',dur:480 },
+  { id:'shield',   label:'S',  color:'#ffaa00',dur:0 },
+  { id:'speedUp',  label:'>>', color:'#ff4444',dur:300 },
+  { id:'slowOpp',  label:'<<', color:'#aa44ff',dur:480 },
+];
+
 /* ------------------------------------------------------------------ */
 /*  COLOR HELPERS                                                      */
 /* ------------------------------------------------------------------ */
@@ -711,6 +719,7 @@ class InputHandler {
 
 const settings = {
   gameMode:'pvp',difficulty:'medium',soundEnabled:true,effectsEnabled:true,
+  gameVariant:'classic',
   theme:'classic',
   themeOverrideBg:null,
   themeOverrideAccent:null,
@@ -767,6 +776,10 @@ class PongGame {
     this.paddleRight=new Paddle(CONFIG.canvasWidth-CONFIG.paddleMargin-7,mY-45,14,90,'#ffffff');
     this.ball=new Ball(mX,mY,16,'#ffffff');this.particles=[];
     this.state='idle';this.active=false;this.paused=false;this.serveDirection=1;this.serveTimer=0;this.winMessage='';
+    // power-up state
+    this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
+    this.puEffects={lBig:0,rBig:0,lShield:false,rShield:false,ballSpd:0,lSlow:0,rSlow:0};
+    this.ballSpeedMod=1;
     this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
     this._loop=this._loop.bind(this);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,0);this._loop(0);
   }
@@ -805,7 +818,10 @@ class PongGame {
   _resetGame(){
     this.paddleLeft.score=0;this.paddleRight.score=0;
     this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);
-    this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,1);this.particles=[];this.serveDirection=Math.random()<.5?1:-1;
+    this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,1);    this.particles=[];this.serveDirection=Math.random()<.5?1:-1;
+    this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
+    this.puEffects={lBig:0,rBig:0,lShield:false,rShield:false,ballSpd:0,lSlow:0,rSlow:0};
+    this.ballSpeedMod=1;
   }
 
   transition(newState){
@@ -828,6 +844,8 @@ class PongGame {
     requestAnimationFrame(this._loop);if(this.lastTime===0){this.lastTime=ts;return;}
     const dt=ts-this.lastTime;this.lastTime=ts;this.accumulator+=dt;
     while(this.accumulator>=this.tickRate){if(!this.paused)this._update();this.accumulator-=this.tickRate;}
+    if(this.state==='playing'&&settings.gameVariant==='powerups')this._updatePowerUps();
+    this._updateEffects();
     this._draw(ts);
   }
 
@@ -840,23 +858,38 @@ class PongGame {
   _updatePlaying(){
     this._handleInput();
     this.paddleLeft.update(CONFIG.canvasHeight);
-    if(this.ai)this.ai.update(this.paddleRight,this.ball,CONFIG.canvasHeight);
+    if(this.ai){this.ai.update(this.paddleRight,this.ball,CONFIG.canvasHeight);if(this.puEffects.rSlow>0)this.paddleRight.vy*=.4;}
     this.paddleRight.update(CONFIG.canvasHeight);
     this.ball.update();
     const bw=this.ball.size/2;
     if(this.ball.y-bw<=0){this.ball.y=bw;this.ball.dy=Math.abs(this.ball.dy);if(settings.soundEnabled)this.sound.play('wall');}
     if(this.ball.y+bw>=CONFIG.canvasHeight){this.ball.y=CONFIG.canvasHeight-bw;this.ball.dy=-Math.abs(this.ball.dy);if(settings.soundEnabled)this.sound.play('wall');}
-    if(this.ball.dx<0&&this.ball.x-bw<=this.paddleLeft.x+this.paddleLeft.width&&this.ball.x-bw>=this.paddleLeft.x&&this.ball.y+bw>=this.paddleLeft.y&&this.ball.y-bw<=this.paddleLeft.y+this.paddleLeft.height)this._hitPaddle(this.paddleLeft,1);
-    if(this.ball.dx>0&&this.ball.x+bw>=this.paddleRight.x&&this.ball.x+bw<=this.paddleRight.x+this.paddleRight.width&&this.ball.y+bw>=this.paddleRight.y&&this.ball.y-bw<=this.paddleRight.y+this.paddleRight.height)this._hitPaddle(this.paddleRight,-1);
-    if(this.ball.x+bw<0){this.paddleRight.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
-    if(this.ball.x-bw>CONFIG.canvasWidth){this.paddleLeft.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
+    if(this.ball.dx<0&&this.ball.x-bw<=this.paddleLeft.x+this.paddleLeft.width&&this.ball.x-bw>=this.paddleLeft.x){
+      const ly=this.paddleLeft.y-(this.puEffects.lBig>0?this.paddleLeft.height*.25:0);
+      const lh=this.paddleLeft.height+(this.puEffects.lBig>0?this.paddleLeft.height*.5:0);
+      if(this.ball.y+bw>=ly&&this.ball.y-bw<=ly+lh)this._hitPaddle(this.paddleLeft,1);
+    }
+    if(this.ball.dx>0&&this.ball.x+bw>=this.paddleRight.x&&this.ball.x+bw<=this.paddleRight.x+this.paddleRight.width){
+      const ry=this.paddleRight.y-(this.puEffects.rBig>0?this.paddleRight.height*.25:0);
+      const rh=this.paddleRight.height+(this.puEffects.rBig>0?this.paddleRight.height*.5:0);
+      if(this.ball.y+bw>=ry&&this.ball.y-bw<=ry+rh)this._hitPaddle(this.paddleRight,-1);
+    }
+    if(this.ball.x+bw<0){
+      if(this.puEffects.lShield){this.puEffects.lShield=false;this.ball.dx=Math.abs(this.ball.dx);this.ball.x=bw;if(settings.soundEnabled)this.sound.play('paddle');}
+      else{this.paddleRight.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
+    }
+    if(this.ball.x-bw>CONFIG.canvasWidth){
+      if(this.puEffects.rShield){this.puEffects.rShield=false;this.ball.dx=-Math.abs(this.ball.dx);this.ball.x=CONFIG.canvasWidth-bw;if(settings.soundEnabled)this.sound.play('paddle');}
+      else{this.paddleLeft.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
+    }
   }
   _hitPaddle(paddle,dir){
     const hp=(this.ball.y-paddle.y)/paddle.height,cl=Math.max(.05,Math.min(.95,hp)),ang=(cl-.5)*(Math.PI/3);
-    this.ball.speed=Math.min(this.ball.speed+CONFIG.ballSpeedIncrement,CONFIG.ballSpeedMax);
+    this.ball.speed=Math.min(this.ball.speed+CONFIG.ballSpeedIncrement,CONFIG.ballSpeedMax)*this.ballSpeedMod;
     this.ball.dx=Math.cos(ang)*this.ball.speed*dir;this.ball.dy=Math.sin(ang)*this.ball.speed;
     this.ball.x=paddle.x+(dir>0?paddle.width+this.ball.size/2:-this.ball.size/2);
-    // spin from paddle hit: magnitude based on off-center hit + ball speed
+    this.lastHitBy=dir>0?'left':'right';
+    // spin from paddle hit
     this.ball.spin=(cl-.5)*this.ball.speed*.12;
     if(settings.soundEnabled)this.sound.play('paddle');
   }
@@ -864,11 +897,47 @@ class PongGame {
   _updateOver(){if(this.input.isDown(' '))this.restart();}
   _handleInput(){
     this.paddleLeft.vy=0;if(!this.ai)this.paddleRight.vy=0;
-    if(this.input.isDown('w')||this.input.isDown('W'))this.paddleLeft.vy=-CONFIG.paddleSpeed;
-    if(this.input.isDown('s')||this.input.isDown('S'))this.paddleLeft.vy=CONFIG.paddleSpeed;
-    if(!this.ai){if(this.input.isDown('ArrowUp'))this.paddleRight.vy=-CONFIG.paddleSpeed;if(this.input.isDown('ArrowDown'))this.paddleRight.vy=CONFIG.paddleSpeed;}
+    const lSpd=CONFIG.paddleSpeed*(this.puEffects.lSlow>0?.4:1);
+    const rSpd=CONFIG.paddleSpeed*(this.puEffects.rSlow>0?.4:1);
+    if(this.input.isDown('w')||this.input.isDown('W'))this.paddleLeft.vy=-lSpd;
+    if(this.input.isDown('s')||this.input.isDown('S'))this.paddleLeft.vy=lSpd;
+    if(!this.ai){if(this.input.isDown('ArrowUp'))this.paddleRight.vy=-rSpd;if(this.input.isDown('ArrowDown'))this.paddleRight.vy=rSpd;}
   }
 
+  /* ---- power-ups ---- */
+  _updatePowerUps(){
+    if(!this.powerUp){
+      if(--this.puSpawnTimer<=0)this._spawnPowerUp();
+    }else{
+      const dx=this.ball.x-this.powerUp.x,dy=this.ball.y-this.powerUp.y;
+      if(Math.sqrt(dx*dx+dy*dy)<this.ball.size/2+10){
+        this._applyPowerUp(this.powerUp.type);
+        this.powerUp=null;this.puSpawnTimer=300+Math.random()*600;
+      }
+    }
+  }
+  _spawnPowerUp(){
+    const t=POWERUP_TYPES[Math.floor(Math.random()*POWERUP_TYPES.length)];
+    const m=100;
+    this.powerUp={x:m+Math.random()*(CONFIG.canvasWidth-m*2),y:m+Math.random()*(CONFIG.canvasHeight-m*2),type:t};
+  }
+  _applyPowerUp(type){
+    const p=this.lastHitBy||'left',o=p==='left'?'right':'left';
+    switch(type.id){
+      case'bigPaddle':if(p==='left')this.puEffects.lBig=type.dur;else this.puEffects.rBig=type.dur;break;
+      case'shield':if(p==='left')this.puEffects.lShield=true;else this.puEffects.rShield=true;break;
+      case'speedUp':this.puEffects.ballSpd=type.dur;break;
+      case'slowOpp':if(o==='left')this.puEffects.lSlow=type.dur;else this.puEffects.rSlow=type.dur;break;
+    }
+  }
+  _updateEffects(){
+    const e=this.puEffects;
+    if(e.lBig>0)e.lBig--;if(e.rBig>0)e.rBig--;
+    if(e.lSlow>0)e.lSlow--;if(e.rSlow>0)e.rSlow--;
+    if(e.ballSpd>0){e.ballSpd--;this.ballSpeedMod=1.4;if(e.ballSpd<=0)this.ballSpeedMod=1;}
+  }
+
+  /* ---- drawing ---- */
   _draw(ts){
     const ctx=this.ctx,w=CONFIG.canvasWidth,h=CONFIG.canvasHeight,theme=this.getTheme();
     const alpha=Math.min(this.accumulator/this.tickRate,1);
@@ -878,8 +947,42 @@ class PongGame {
     ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();ctx.setLineDash([]);
     this.paddleLeft.drawInterpolated(ctx,this.getLeftPaddleStyle(),alpha);
     this.paddleRight.drawInterpolated(ctx,this.getRightPaddleStyle(),alpha);
+    // big paddle overlay — draw expanded paddle
+    if(this.puEffects.lBig>0){
+      const iy=this.paddleLeft.prevY+(this.paddleLeft.y-this.paddleLeft.prevY)*alpha;
+      const ex=this.paddleLeft.height*.25;
+      PaddleRenderer.draw(ctx,this.paddleLeft.x,iy-ex,this.paddleLeft.width,this.paddleLeft.height+ex*2,this.paddleLeft.color,this.getLeftPaddleStyle());
+    }
+    if(this.puEffects.rBig>0){
+      const iy=this.paddleRight.prevY+(this.paddleRight.y-this.paddleRight.prevY)*alpha;
+      const ex=this.paddleRight.height*.25;
+      PaddleRenderer.draw(ctx,this.paddleRight.x,iy-ex,this.paddleRight.width,this.paddleRight.height+ex*2,this.paddleRight.color,this.getRightPaddleStyle());
+    }
     this.ball.drawInterpolated(ctx,ts,alpha);
     for(const p of this.particles)p.draw(ctx,alpha);
+    // power-up orb
+    if(this.powerUp&&this.state==='playing'){
+      const pu=this.powerUp,pulse=.8+Math.sin(Date.now()/300)*.2;
+      const g=ctx.createRadialGradient(pu.x,pu.y,4,pu.x,pu.y,14*pulse);
+      g.addColorStop(0,colorWithAlpha(pu.type.color,.9));g.addColorStop(1,colorWithAlpha(pu.type.color,0));
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(pu.x,pu.y,14*pulse,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=pu.type.color;ctx.beginPath();ctx.arc(pu.x,pu.y,6,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#fff';ctx.font='bold 8px "Press Start 2P",monospace';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pu.type.label,pu.x,pu.y+1);
+    }
+    // shield indicators
+    if(this.puEffects.lShield){
+      ctx.strokeStyle='#ffaa00';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(this.paddleLeft.x+this.paddleLeft.width/2,this.paddleLeft.y-10,6,0,Math.PI*2);ctx.stroke();
+      ctx.fillStyle='#ffaa00';ctx.font='bold 7px "Press Start 2P",monospace';
+      ctx.textAlign='center';ctx.fillText('S',this.paddleLeft.x+this.paddleLeft.width/2,this.paddleLeft.y-9);
+    }
+    if(this.puEffects.rShield){
+      ctx.strokeStyle='#ffaa00';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(this.paddleRight.x+this.paddleRight.width/2,this.paddleRight.y-10,6,0,Math.PI*2);ctx.stroke();
+      ctx.fillStyle='#ffaa00';ctx.font='bold 7px "Press Start 2P",monospace';
+      ctx.textAlign='center';ctx.fillText('S',this.paddleRight.x+this.paddleRight.width/2,this.paddleRight.y-9);
+    }
     this._drawOverlay(ctx,w,h,theme);
     this.scoreLeftEl.textContent=this.paddleLeft.score;this.scoreRightEl.textContent=this.paddleRight.score;
   }
@@ -975,6 +1078,9 @@ class MenuController {
   _onAction(a){
     switch(a){
       case'play':this.startGame();break;
+      case'toggle-gamemode':
+        settings.gameVariant=settings.gameVariant==='classic'?'powerups':'classic';
+        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':'POWER UPS';break;
       case'cycle-mode':{
         if(settings.gameMode==='pvp'){settings.gameMode='ai';settings.difficulty='easy';}
         else if(settings.difficulty==='easy')settings.difficulty='medium';
@@ -1059,6 +1165,7 @@ class MenuController {
   _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
+    document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':'POWER UPS';
     const sl=document.getElementById('soundLabel'),sb=sl.parentElement;sl.textContent=settings.soundEnabled?'ON':'OFF';sb.classList.toggle('on',settings.soundEnabled);sb.classList.toggle('off',!settings.soundEnabled);
     const el=document.getElementById('effectsLabel'),eb=el.parentElement;el.textContent=settings.effectsEnabled?'ON':'OFF';eb.classList.toggle('on',settings.effectsEnabled);eb.classList.toggle('off',!settings.effectsEnabled);
   }

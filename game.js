@@ -224,77 +224,96 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: classic black pentagons / white hexagons, pentagons never touch
+  // -- soccer: full connected panels — large black pentagons separated by white hexagons sharing edges
   _soccer(ctx,x,y,r){
-    ctx.fillStyle='#f2f2f2';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
     const TAU=Math.PI*2, N=5;
-    const ca=Array.from({length:N},(_,i)=>TAU/N*i-Math.PI/2);
+    const va=Array.from({length:N},(_,i)=>TAU/N*i-Math.PI/2);
     // center pentagon vertices
-    const cpr=r*.26;
-    const cv=ca.map(a=>({x:x+Math.cos(a)*cpr,y:y+Math.sin(a)*cpr}));
-    // outer pentagon positions — one between each pair of center vertices, offset outward
-    const outer=[];
+    const cpr=r*.28;
+    const cv=va.map(a=>({x:x+Math.cos(a)*cpr,y:y+Math.sin(a)*cpr}));
+    // outer pentagon centers (at same angles as center vertices, further out)
+    const od=r*.62;
+    const oc=va.map(a=>({x:x+Math.cos(a)*od,y:y+Math.sin(a)*od, a}));
+    const opr=r*.16;
+    // build outer pentagon vertex arrays (rotated so one vertex faces inward toward center)
+    const ov=oc.map(o=>{
+      return Array.from({length:N},(_,j)=>({
+        x:o.x+Math.cos(o.a+Math.PI+TAU/N*j)*opr,
+        y:o.y+Math.sin(o.a+Math.PI+TAU/N*j)*opr,
+      }));
+    });
+
+    // draw white hexagons — one bridging each center pentagon edge to its two adjacent outer pentagons
+    ctx.fillStyle='#f5f5f5';
     for(let i=0;i<N;i++){
-      const aMid=ca[i]+TAU/N/2; // angle halfway between two center vertices
-      const dist=r*.68;
-      outer.push({cx:x+Math.cos(aMid)*dist,cy:y+Math.sin(aMid)*dist,ang:aMid});
-    }
-    // draw outer white hexagons first (they sit between pentagons)
-    const opr=r*.14;
-    for(let i=0;i<N;i++){
-      const o=outer[i];
-      // hexagon around each outer pentagon position (drawn in white to create separation)
-      ctx.fillStyle='#f2f2f2';ctx.beginPath();
-      for(let j=0;j<6;j++){
-        const a=TAU/6*j-Math.PI/2;
-        const hx=o.cx+Math.cos(a)*opr*1.6,hy=o.cy+Math.sin(a)*opr*1.4;
-        if(j===0)ctx.moveTo(hx,hy);else ctx.lineTo(hx,hy);
-      }
+      const i2=(i+1)%N;
+      // center edge vertices
+      const e1=cv[i], e2=cv[i2];
+      // outer pentagon vertex closest to e1
+      const o1=ov[i], o2=ov[i2];
+      // vertices on outer pentagons facing the center edge
+      const o1a=o1[3], o1b=o1[4]; // two vertices pointing toward this edge
+      const o2a=o2[1], o2b=o2[0];
+      // draw hexagon: e1 → o1a → o1b → o2a → o2b → e2 → back
+      ctx.beginPath();
+      ctx.moveTo(e1.x,e1.y);
+      ctx.lineTo(o1a.x,o1a.y);ctx.lineTo(o1b.x,o1b.y);
+      ctx.lineTo(o2a.x,o2a.y);ctx.lineTo(o2b.x,o2b.y);
+      ctx.lineTo(e2.x,e2.y);
       ctx.closePath();ctx.fill();
     }
+
     // draw black pentagons
     ctx.fillStyle='#1a1a1a';
     // center
     ctx.beginPath();
     for(let i=0;i<N;i++){if(i===0)ctx.moveTo(cv[i].x,cv[i].y);else ctx.lineTo(cv[i].x,cv[i].y);}
     ctx.closePath();ctx.fill();
-    // 5 outer pentagons
-    for(let i=0;i<N;i++){
-      const o=outer[i];
+    // 5 outer
+    for(const o of ov){
       ctx.beginPath();
-      for(let j=0;j<N;j++){
-        const a=TAU/N*j-Math.PI/2;
-        const px=o.cx+Math.cos(a)*opr,py=o.cy+Math.sin(a)*opr;
-        if(j===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
-      }
+      for(let j=0;j<N;j++){if(j===0)ctx.moveTo(o[j].x,o[j].y);else ctx.lineTo(o[j].x,o[j].y);}
       ctx.closePath();ctx.fill();
     }
-    // thin seam lines — hexagon edges around outer pentagons
-    ctx.strokeStyle='#777';ctx.lineWidth=.6;
-    for(let i=0;i<N;i++){
-      const o=outer[i];
+
+    // seam lines — all polygon edges
+    ctx.strokeStyle='#555';ctx.lineWidth=.7;
+    // center pentagon
+    ctx.beginPath();
+    for(let i=0;i<N;i++){if(i===0)ctx.moveTo(cv[i].x,cv[i].y);else ctx.lineTo(cv[i].x,cv[i].y);}
+    ctx.closePath();ctx.stroke();
+    // outer pentagons
+    for(const o of ov){
       ctx.beginPath();
-      for(let j=0;j<6;j++){
-        const a=TAU/6*j-Math.PI/2;
-        const hx=o.cx+Math.cos(a)*opr*1.6,hy=o.cy+Math.sin(a)*opr*1.4;
-        if(j===0)ctx.moveTo(hx,hy);else ctx.lineTo(hx,hy);
-      }
+      for(let j=0;j<N;j++){if(j===0)ctx.moveTo(o[j].x,o[j].y);else ctx.lineTo(o[j].x,o[j].y);}
       ctx.closePath();ctx.stroke();
     }
-    // seams linking center pentagon vertices to outer hexagon vertices
+    // hexagon edges (center-vertex to outer-vertex connections)
     for(let i=0;i<N;i++){
-      const v=ca[i];
-      // two adjacent outer pentagons
-      for(let k=0;k<=1;k++){
-        const oi=(i+k+N-1)%N;
-        const o=outer[oi];
-        // closest hexagon vertex to this center vertex
-        const ha=o.ang+TAU/N*(k===0?0.5:-0.5);
-        const hx=o.cx+Math.cos(ha)*opr*1.4,hy=o.cy+Math.sin(ha)*opr*1.4;
-        ctx.beginPath();ctx.moveTo(cv[i].x,cv[i].y);ctx.lineTo(hx,hy);ctx.stroke();
-      }
+      const i2=(i+1)%N;
+      const e1=cv[i], e2=cv[i2];
+      const o1a=ov[i][3], o1b=ov[i][4];
+      const o2a=ov[i2][1], o2b=ov[i2][0];
+      ctx.beginPath();
+      ctx.moveTo(e1.x,e1.y);ctx.lineTo(o1a.x,o1a.y);
+      ctx.moveTo(o1b.x,o1b.y);ctx.lineTo(o2a.x,o2a.y);
+      ctx.moveTo(o2b.x,o2b.y);ctx.lineTo(e2.x,e2.y);
+      ctx.stroke();
     }
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=.9;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
+    // outer pentagon inner edges (the two vertices facing center)
+    for(const o of ov){
+      ctx.beginPath();ctx.moveTo(o[3].x,o[3].y);ctx.lineTo(o[4].x,o[4].y);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(o[0].x,o[0].y);ctx.lineTo(o[1].x,o[1].y);ctx.stroke();
+    }
+    // inter-outer-pentagon seams
+    for(let i=0;i<N;i++){
+      const i2=(i+1)%N;
+      const o1=ov[i], o2=ov[i2];
+      ctx.beginPath();ctx.moveTo(o1[4].x,o1[4].y);ctx.lineTo(o2[0].x,o2[0].y);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(o1[0].x,o1[0].y);ctx.lineTo(o1[3].x,o1[3].y);ctx.stroke();
+    }
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=.9;
+    ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
   },
 
   // -- tennis: golden yellow (#dcd214), two crossing white seam curves, fuzzy edge

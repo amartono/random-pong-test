@@ -16,167 +16,98 @@
       <div class="score score-right" id="scoreRight">0</div>
     </div>
 
-    <!-- Game canvas -->
-    <canvas id="gameCanvas" width="800" height="500" class="hidden"></canvas>
+    <!-- Arena container: canvas with overlays stacked on top -->
+    <div class="arena-container">
+      <canvas id="gameCanvas" width="800" height="500"></canvas>
 
-    <!-- ====== IN-GAME THEME SWITCHER ====== -->
+      <!-- Main Menu Overlay -->
+      <div class="menu-overlay" id="menuOverlay">
+        <div class="menu-screen" id="menuMain">
+          <h1 class="menu-title">PONG</h1>
+          <button class="menu-btn" data-action="play">PLAY</button>
+          <button class="menu-btn toggle-mode" data-action="toggle-gamemode">
+            GAME MODE: <span id="gameModeLabel">CLASSIC</span>
+          </button>
+          <button class="menu-btn toggle-mode" data-action="cycle-mode">
+            <span id="modeLabel">PLAYER vs PLAYER</span>
+          </button>
+          <button class="menu-btn" data-action="skins">CUSTOMIZE</button>
+          <button class="menu-btn toggle" data-action="sound">
+            SOUND: <span id="soundLabel">ON</span>
+          </button>
+          <button class="menu-btn toggle" data-action="effects">
+            EFFECTS: <span id="effectsLabel">ON</span>
+          </button>
+        </div>
+
+        <!-- Customize Hub -->
+        <div class="menu-screen hidden" id="menuSkins">
+          <h2 class="menu-subtitle">CUSTOMIZE</h2>
+          <button class="menu-btn" data-action="theme-page">THEME</button>
+          <button class="menu-btn" data-action="paddle-page">PADDLES</button>
+          <button class="menu-btn" data-action="ball-page">BALL</button>
+          <button class="menu-btn back-btn" data-action="back">BACK</button>
+        </div>
+
+        <!-- Theme -->
+        <div class="menu-screen hidden" id="menuTheme">
+          <h2 class="menu-subtitle">THEME</h2>
+          <div class="skin-section"><p class="menu-label">PRESET</p><div class="theme-options" id="themePresets"></div></div>
+          <div class="skin-section"><p class="menu-label">BACKGROUND</p><div class="color-picker-row"><input type="color" id="themeBg"><button class="menu-btn tiny" data-action="reset-theme-bg">RESET</button></div></div>
+          <div class="skin-section"><p class="menu-label">ACCENT COLOR</p><div class="color-picker-row"><input type="color" id="themeAccent"><button class="menu-btn tiny" data-action="reset-theme-accent">RESET</button></div></div>
+          <div class="skin-section"><p class="menu-label">GLOW: <span id="glowVal">0</span></p><input type="range" id="glowSlider" min="0" max="30" value="0" class="style-slider"><button class="menu-btn tiny" data-action="reset-theme-glow">RESET</button></div>
+          <button class="menu-btn back-btn" data-action="back">BACK</button>
+        </div>
+
+        <!-- Paddles -->
+        <div class="menu-screen hidden" id="menuPaddle">
+          <h2 class="menu-subtitle">PADDLES</h2>
+          <div class="paddle-col"><div class="skin-section"><p class="menu-label">LEFT STYLE</p><div class="style-options" id="leftPaddleStyles"></div></div><div class="skin-section"><p class="menu-label">LEFT COLOR</p><div class="color-picker-row"><input type="color" id="paddleLeftColor"><button class="menu-btn tiny" data-action="reset-paddle-left">RESET</button></div></div></div>
+          <div class="paddle-col"><div class="skin-section"><p class="menu-label">RIGHT STYLE</p><div class="style-options" id="rightPaddleStyles"></div></div><div class="skin-section"><p class="menu-label">RIGHT COLOR</p><div class="color-picker-row"><input type="color" id="paddleRightColor"><button class="menu-btn tiny" data-action="reset-paddle-right">RESET</button></div></div></div>
+          <div class="skin-section"><p class="menu-label">WIDTH: <span id="paddleWidthVal">14</span></p><input type="range" id="paddleWidthSlider" min="6" max="30" value="14" class="style-slider"><button class="menu-btn tiny" data-action="reset-paddle-width">RESET</button></div>
+          <div class="skin-section"><p class="menu-label">HEIGHT: <span id="paddleHeightVal">90</span></p><input type="range" id="paddleHeightSlider" min="30" max="180" value="90" class="style-slider"><button class="menu-btn tiny" data-action="reset-paddle-height">RESET</button></div>
+          <button class="menu-btn back-btn" data-action="back">BACK</button>
+        </div>
+
+        <!-- Ball -->
+        <div class="menu-screen hidden" id="menuBall">
+          <h2 class="menu-subtitle">BALL</h2>
+          <canvas id="ballPreview" width="80" height="80" class="ball-preview-canvas"></canvas>
+          <div class="skin-section"><p class="menu-label">SKIN</p><div class="ball-skin-grid" id="ballSkinGrid"></div></div>
+          <div class="skin-section"><p class="menu-label">COLOR</p><div class="color-picker-row"><input type="color" id="ballColor"><button class="menu-btn tiny" data-action="reset-ball">RESET</button></div></div>
+          <div class="skin-section"><p class="menu-label">SIZE: <span id="ballSizeVal">16</span></p><input type="range" id="ballSizeSlider" min="6" max="32" value="16" class="style-slider"><button class="menu-btn tiny" data-action="reset-ball-size">RESET</button></div>
+          <button class="menu-btn back-btn" data-action="back">BACK</button>
+        </div>
+      </div>
+
+      <!-- Pause Overlay -->
+      <div class="pause-overlay hidden" id="pauseOverlay">
+        <div class="menu-screen pause-box">
+          <h2 class="menu-subtitle">PAUSED</h2>
+          <button class="menu-btn" data-action="resume">RESUME</button>
+          <button class="menu-btn" data-action="restart">RESTART</button>
+          <button class="menu-btn" data-action="quit">QUIT TO MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- In-game Theme Switcher -->
     <div class="theme-switcher hidden" id="themeSwitcher">
       <span class="ts-label">THEME</span>
       <div class="ts-dots" id="tsDots"></div>
     </div>
 
-    <!-- ====== MAIN MENU OVERLAY ====== -->
-    <div class="menu-overlay" id="menuOverlay">
-
-      <!-- Main Menu -->
-      <div class="menu-screen" id="menuMain">
-        <h1 class="menu-title">PONG</h1>
-        <button class="menu-btn" data-action="play">PLAY</button>
-        <button class="menu-btn toggle-mode" data-action="toggle-gamemode">
-          GAME MODE: <span id="gameModeLabel">CLASSIC</span>
-        </button>
-        <button class="menu-btn toggle-mode" data-action="cycle-mode">
-          <span id="modeLabel">PLAYER vs PLAYER</span>
-        </button>
-        <button class="menu-btn" data-action="skins">CUSTOMIZE</button>
-        <button class="menu-btn toggle" data-action="sound">
-          SOUND: <span id="soundLabel">ON</span>
-        </button>
-        <button class="menu-btn toggle" data-action="effects">
-          EFFECTS: <span id="effectsLabel">ON</span>
-        </button>
-      </div>
-
-      <!-- Skins Hub -->
-      <div class="menu-screen hidden" id="menuSkins">
-        <h2 class="menu-subtitle">CUSTOMIZE</h2>
-        <button class="menu-btn" data-action="theme-page">THEME</button>
-        <button class="menu-btn" data-action="paddle-page">PADDLES</button>
-        <button class="menu-btn" data-action="ball-page">BALL</button>
-        <button class="menu-btn back-btn" data-action="back">BACK</button>
-      </div>
-
-      <!-- ====== THEME CUSTOMIZATION ====== -->
-      <div class="menu-screen hidden" id="menuTheme">
-        <h2 class="menu-subtitle">THEME</h2>
-        <div class="skin-section">
-          <p class="menu-label">PRESET</p>
-          <div class="theme-options" id="themePresets"></div>
-        </div>
-        <div class="skin-section">
-          <p class="menu-label">BACKGROUND</p>
-          <div class="color-picker-row">
-            <input type="color" id="themeBg">
-            <button class="menu-btn tiny" data-action="reset-theme-bg">RESET</button>
-          </div>
-        </div>
-        <div class="skin-section">
-          <p class="menu-label">ACCENT COLOR</p>
-          <div class="color-picker-row">
-            <input type="color" id="themeAccent">
-            <button class="menu-btn tiny" data-action="reset-theme-accent">RESET</button>
-          </div>
-        </div>
-        <div class="skin-section">
-          <p class="menu-label">GLOW: <span id="glowVal">0</span></p>
-          <input type="range" id="glowSlider" min="0" max="30" value="0" class="style-slider">
-          <button class="menu-btn tiny" data-action="reset-theme-glow">RESET</button>
-        </div>
-        <button class="menu-btn back-btn" data-action="back">BACK</button>
-      </div>
-
-      <!-- ====== PADDLE CUSTOMIZATION ====== -->
-      <div class="menu-screen hidden" id="menuPaddle">
-        <h2 class="menu-subtitle">PADDLES</h2>
-        <div class="paddle-col">
-          <div class="skin-section">
-            <p class="menu-label">LEFT STYLE</p>
-            <div class="style-options" id="leftPaddleStyles"></div>
-          </div>
-          <div class="skin-section">
-            <p class="menu-label">LEFT COLOR</p>
-            <div class="color-picker-row">
-              <input type="color" id="paddleLeftColor">
-              <button class="menu-btn tiny" data-action="reset-paddle-left">RESET</button>
-            </div>
-          </div>
-        </div>
-        <div class="paddle-col">
-          <div class="skin-section">
-            <p class="menu-label">RIGHT STYLE</p>
-            <div class="style-options" id="rightPaddleStyles"></div>
-          </div>
-          <div class="skin-section">
-            <p class="menu-label">RIGHT COLOR</p>
-            <div class="color-picker-row">
-              <input type="color" id="paddleRightColor">
-              <button class="menu-btn tiny" data-action="reset-paddle-right">RESET</button>
-            </div>
-          </div>
-        </div>
-        <div class="skin-section">
-          <p class="menu-label">WIDTH: <span id="paddleWidthVal">14</span></p>
-          <input type="range" id="paddleWidthSlider" min="6" max="30" value="14" class="style-slider">
-          <button class="menu-btn tiny" data-action="reset-paddle-width">RESET</button>
-        </div>
-        <div class="skin-section">
-          <p class="menu-label">HEIGHT: <span id="paddleHeightVal">90</span></p>
-          <input type="range" id="paddleHeightSlider" min="30" max="180" value="90" class="style-slider">
-          <button class="menu-btn tiny" data-action="reset-paddle-height">RESET</button>
-        </div>
-        <button class="menu-btn back-btn" data-action="back">BACK</button>
-      </div>
-
-      <!-- ====== BALL CUSTOMIZATION ====== -->
-      <div class="menu-screen hidden" id="menuBall">
-        <h2 class="menu-subtitle">BALL</h2>
-        <canvas id="ballPreview" width="80" height="80" class="ball-preview-canvas"></canvas>
-        <div class="skin-section">
-          <p class="menu-label">SKIN</p>
-          <div class="ball-skin-grid" id="ballSkinGrid"></div>
-        </div>
-        <div class="skin-section">
-          <p class="menu-label">COLOR</p>
-          <div class="color-picker-row">
-            <input type="color" id="ballColor">
-            <button class="menu-btn tiny" data-action="reset-ball">RESET</button>
-          </div>
-        </div>
-        <div class="skin-section">
-          <p class="menu-label">SIZE: <span id="ballSizeVal">16</span></p>
-          <input type="range" id="ballSizeSlider" min="6" max="32" value="16" class="style-slider">
-          <button class="menu-btn tiny" data-action="reset-ball-size">RESET</button>
-        </div>
-        <button class="menu-btn back-btn" data-action="back">BACK</button>
-      </div>
-    </div>
-
-    <!-- ====== PAUSE OVERLAY ====== -->
-    <div class="pause-overlay hidden" id="pauseOverlay">
-      <div class="menu-screen pause-box">
-        <h2 class="menu-subtitle">PAUSED</h2>
-        <button class="menu-btn" data-action="resume">RESUME</button>
-        <button class="menu-btn" data-action="restart">RESTART</button>
-        <button class="menu-btn" data-action="quit">QUIT TO MENU</button>
-      </div>
-    </div>
-
     <!-- Controls bar -->
     <div class="controls-bar" id="controlsBar">
       <div class="control-group">
-        <span class="key">W</span>
-        <span class="key">S</span>
-        <span class="label">Player 1</span>
+        <span class="key">W</span><span class="key">S</span><span class="label">Player 1</span>
       </div>
       <div class="control-group" id="p2Controls">
-        <span class="label">Player 2</span>
-        <span class="key">&#9650;</span>
-        <span class="key">&#9660;</span>
+        <span class="label">Player 2</span><span class="key">&#9650;</span><span class="key">&#9660;</span>
       </div>
     </div>
 
   </div>
-
   <script src="game.js"></script>
 </body>
 </html>

@@ -1080,13 +1080,13 @@ class MenuController {
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
     [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));
-    this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');this.canvas.classList.add('hidden');
+    this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
   startGame(){
     this.menuOverlay.classList.add('hidden');this.pauseOverlay.classList.add('hidden');
-    this.scoreboard.classList.remove('hidden');this.canvas.classList.remove('hidden');
-    this.themeSwitcher.classList.remove('hidden');this.controlsBar.classList.remove('hidden');
+    this.scoreboard.classList.remove('hidden');this.themeSwitcher.classList.remove('hidden');
+    this.controlsBar.classList.remove('hidden');
     this._updateControlsBar();this._highlightThemeDots();this.game.sound.init();this.game.start();
   }
   pauseGame(){this.game.paused=true;this.pauseOverlay.classList.remove('hidden');}

@@ -190,12 +190,24 @@ canvas {
 }
 
 /* ================================================================== */
+/*  ARENA CONTAINER                                                    */
+/* ================================================================== */
+
+.arena-container {
+  position: relative;
+  width: 800px;
+  height: 500px;
+}
+
+/* ================================================================== */
 /*  MENU OVERLAY                                                       */
 /* ================================================================== */
 
 .menu-overlay {
-  position: relative;
+  position: absolute;
+  top: 0; left: 0;
   width: 800px; height: 500px;
+  z-index: 5;
   background: var(--menu-bg);
   border: 2px solid var(--accent);
   box-shadow: var(--accent-glow);

@@ -299,27 +299,23 @@ const BallRenderer = {
       for(let k=0;k<N;k++){if(k===0)ctx.moveTo(p[k].x,p[k].y);else ctx.lineTo(p[k].x,p[k].y);}
       ctx.closePath();ctx.stroke();
     }
-    // inner hexagon seams: center-to-perimeter connections
+    // inner hexagon outlines
     for(let i=0;i<N;i++){
       const i2=(i+1)%N;
       ctx.beginPath();
       ctx.moveTo(C[i].x,C[i].y);ctx.lineTo(P[i][4].x,P[i][4].y);
-      ctx.moveTo(P[i][4].x,P[i][4].y);ctx.lineTo(P[i][3].x,P[i][3].y);
-      ctx.moveTo(P[i][3].x,P[i][3].y);ctx.lineTo(P[i2][1].x,P[i2][1].y);
-      ctx.moveTo(P[i2][1].x,P[i2][1].y);ctx.lineTo(P[i2][0].x,P[i2][0].y);
-      ctx.moveTo(P[i2][0].x,P[i2][0].y);ctx.lineTo(C[i2].x,C[i2].y);
-      ctx.stroke();
+      ctx.lineTo(P[i][3].x,P[i][3].y);ctx.lineTo(P[i2][1].x,P[i2][1].y);
+      ctx.lineTo(P[i2][0].x,P[i2][0].y);ctx.lineTo(C[i2].x,C[i2].y);
+      ctx.closePath();ctx.stroke();
     }
-    // outer fragment seams
+    // outer fragment outlines
     for(let i=0;i<N;i++){
       const i2=(i+1)%N;
       ctx.beginPath();
       ctx.moveTo(P[i][3].x,P[i][3].y);ctx.lineTo(P[i][2].x,P[i][2].y);
-      ctx.moveTo(P[i][2].x,P[i][2].y);ctx.lineTo(P[i][1].x,P[i][1].y);
-      ctx.moveTo(P[i][1].x,P[i][1].y);ctx.lineTo(rim[i].x,rim[i].y);
-      ctx.moveTo(rim[i].x,rim[i].y);ctx.lineTo(P[i2][4].x,P[i2][4].y);
-      ctx.moveTo(P[i2][4].x,P[i2][4].y);ctx.lineTo(P[i2][3].x,P[i2][3].y);
-      ctx.stroke();
+      ctx.lineTo(P[i][1].x,P[i][1].y);ctx.lineTo(rim[i].x,rim[i].y);
+      ctx.lineTo(P[i2][4].x,P[i2][4].y);ctx.lineTo(P[i2][3].x,P[i2][3].y);
+      ctx.closePath();ctx.stroke();
     }
     ctx.strokeStyle='#1a1a1a';ctx.lineWidth=.85;
     ctx.beginPath();ctx.arc(x,y,r,0,T);ctx.stroke();

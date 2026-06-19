@@ -22,6 +22,92 @@ const CONFIG = {
   winMargin: 2,
 };
 
+/* ---- arena maps ---- */
+const MAPS = {
+  classic: {
+    name:'CLASSIC',
+    draw(ctx,w,h){}, // canvas CSS border is the wall
+    checkWall(b,w,h){
+      const hs=b.size/2;
+      if(b.y-hs<=0){b.y=hs;b.dy=Math.abs(b.dy);return true;}
+      if(b.y+hs>=h){b.y=h-hs;b.dy=-Math.abs(b.dy);return true;}
+      return false;
+    },
+    checkGoal(b,w){const hs=b.size/2;if(b.x+hs<0)return'right';if(b.x-hs>w)return'left';return null;},
+  },
+  oval: {
+    name:'OVAL',
+    draw(ctx,w,h){
+      const cx=w/2,cy=h/2,rx=w/2-4,ry=h/2-4;
+      ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+      // goal gaps at left and right
+      ctx.fillStyle='#111';ctx.fillRect(0,cy-18,8,36);ctx.fillRect(w-8,cy-18,8,36);
+    },
+    checkWall(b,w,h){
+      const hs=b.size/2,cx=w/2,cy=h/2,rx=w/2-4-hs,ry=h/2-4-hs;
+      const dx=b.x-cx,dy=b.y-cy;
+      const f=(dx*dx)/(rx*rx)+(dy*dy)/(ry*ry);
+      if(f>1){const nx=dx/(rx*rx),ny=dy/(ry*ry),nl=Math.sqrt(nx*nx+ny*ny);if(nl>0){const un=nx/nl,vn=ny/nl;const dot=b.dx*un+b.dy*vn;if(dot<0){b.dx-=2*dot*un;b.dy-=2*dot*vn;}b.x=cx+dx/Math.sqrt(f)*.98;b.y=cy+dy/Math.sqrt(f)*.98;}return true;}
+      return false;
+    },
+    checkGoal(b,w){
+      const hs=b.size/2,cy=CONFIG.canvasHeight/2;
+      if(b.x+hs<2&&Math.abs(b.y-cy)<22)return'right';
+      if(b.x-hs>w-2&&Math.abs(b.y-cy)<22)return'left';
+      return null;
+    },
+  },
+  circle: {
+    name:'CIRCLE',
+    draw(ctx,w,h){
+      const cx=w/2,cy=h/2,rx=w/2-6,ry=h/2-6;
+      ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+      ctx.fillStyle='#111';ctx.fillRect(0,cy-16,8,32);ctx.fillRect(w-8,cy-16,8,32);
+    },
+    checkWall(b,w,h){
+      const hs=b.size/2,cx=w/2,cy=h/2,rx=w/2-6-hs,ry=h/2-6-hs;
+      const dx=b.x-cx,dy=b.y-cy;
+      const f=(dx*dx)/(rx*rx)+(dy*dy)/(ry*ry);
+      if(f>1){const nx=dx/(rx*rx),ny=dy/(ry*ry),nl=Math.sqrt(nx*nx+ny*ny);if(nl>0){const un=nx/nl,vn=ny/nl;const dot=b.dx*un+b.dy*vn;if(dot<0){b.dx-=2*dot*un;b.dy-=2*dot*vn;}b.x=cx+dx/Math.sqrt(f)*.98;b.y=cy+dy/Math.sqrt(f)*.98;}return true;}
+      return false;
+    },
+    checkGoal(b,w){
+      const hs=b.size/2,cy=CONFIG.canvasHeight/2;
+      if(b.x+hs<2&&Math.abs(b.y-cy)<18)return'right';
+      if(b.x-hs>w-2&&Math.abs(b.y-cy)<18)return'left';
+      return null;
+    },
+  },
+  pinball: {
+    name:'PINBALL',
+    bumpers:[],
+    init(w,h){
+      this.bumpers=[];
+      for(let i=0;i<8;i++){this.bumpers.push({x:100+Math.random()*(w-200),y:60+Math.random()*(h-120),r:14+Math.random()*12,c:'#'+['ff4444','ffaa00','44ff44','44aaff','ff44ff'][i%5]});}
+    },
+    draw(ctx,w,h){
+      ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.strokeRect(0,0,w,h);
+      if(!this.bumpers.length)this.init(w,h);
+      for(const b of this.bumpers){
+        ctx.fillStyle=b.c;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
+      }
+    },
+    checkWall(b,w,h){
+      const hs=b.size/2;
+      if(b.y-hs<=0){b.y=hs;b.dy=Math.abs(b.dy);return true;}
+      if(b.y+hs>=h){b.y=h-hs;b.dy=-Math.abs(b.dy);return true;}
+      if(!this.bumpers.length)this.init(w,h);
+      for(const p of this.bumpers){
+        const dx=b.x-p.x,dy=b.y-p.y,dist=Math.sqrt(dx*dx+dy*dy),min=p.r+hs;
+        if(dist<min&&dist>0){const nx=dx/dist,ny=dy/dist;b.x=p.x+nx*min;b.y=p.y+ny*min;const dot=b.dx*nx+b.dy*ny;if(dot<0){b.dx-=2*dot*nx;b.dy-=2*dot*ny;}return true;}
+      }
+      return false;
+    },
+    checkGoal(b,w){const hs=b.size/2;if(b.x+hs<0)return'right';if(b.x-hs>w)return'left';return null;},
+  },
+};
+
 /* ---- power-up types ---- */
 const POWERUP_TYPES = [
   { id:'bigPaddle',label:'BIG',color:'#44aaff',dur:960 },
@@ -735,6 +821,7 @@ const settings = {
   ballSkin:'circle',
   customBall:null,
   ballSize:16,
+  currentMap:'classic',
 };
 
 /* ------------------------------------------------------------------ */
@@ -885,28 +972,27 @@ class PongGame {
     }
   }
   _checkBall(b){
-    const bw=b.size/2;
-    // wall bounces
-    if(b.y-bw<=0){b.y=bw;b.dy=Math.abs(b.dy);if(settings.soundEnabled)this.sound.play('wall');}
-    if(b.y+bw>=CONFIG.canvasHeight){b.y=CONFIG.canvasHeight-bw;b.dy=-Math.abs(b.dy);if(settings.soundEnabled)this.sound.play('wall');}
-    // left paddle
+    const bw=b.size/2,map=MAPS[settings.currentMap];
+    // wall bounce
+    if(map.checkWall(b,CONFIG.canvasWidth,CONFIG.canvasHeight)){if(settings.soundEnabled)this.sound.play('wall');}
+    // paddle collisions
     if(b.dx<0&&b.x-bw<=this.paddleLeft.x+this.paddleLeft.width&&b.x-bw>=this.paddleLeft.x){
       const ly=this.paddleLeft.y-(this.puEffects.lBig>0?this.paddleLeft.height*.25:0);
       const lh=this.paddleLeft.height+(this.puEffects.lBig>0?this.paddleLeft.height*.5:0);
       if(b.y+bw>=ly&&b.y-bw<=ly+lh)this._hitBall(b,this.paddleLeft,1);
     }
-    // right paddle
     if(b.dx>0&&b.x+bw>=this.paddleRight.x&&b.x+bw<=this.paddleRight.x+this.paddleRight.width){
       const ry=this.paddleRight.y-(this.puEffects.rBig>0?this.paddleRight.height*.25:0);
       const rh=this.paddleRight.height+(this.puEffects.rBig>0?this.paddleRight.height*.5:0);
       if(b.y+bw>=ry&&b.y-bw<=ry+rh)this._hitBall(b,this.paddleRight,-1);
     }
-    // goals
-    if(b.x+bw<0){
+    // goal check
+    const g=map.checkGoal(b,CONFIG.canvasWidth);
+    if(g==='right'){
       if(this.puEffects.lShield>0){this.puEffects.lShield--;this._shieldBreak('left');b.dx=Math.abs(b.dx);b.x=bw;if(settings.soundEnabled)this.sound.play('paddle');}
       else{this._score('right');return true;}
     }
-    if(b.x-bw>CONFIG.canvasWidth){
+    if(g==='left'){
       if(this.puEffects.rShield>0){this.puEffects.rShield--;this._shieldBreak('right');b.dx=-Math.abs(b.dx);b.x=CONFIG.canvasWidth-bw;if(settings.soundEnabled)this.sound.play('paddle');}
       else{this._score('left');return true;}
     }
@@ -994,6 +1080,8 @@ class PongGame {
     const ctx=this.ctx,w=CONFIG.canvasWidth,h=CONFIG.canvasHeight,theme=this.getTheme();
     const alpha=Math.min(this.accumulator/this.tickRate,1);
     ctx.fillStyle=settings.themeOverrideBg||theme.bg;ctx.fillRect(0,0,w,h);
+    // arena map
+    MAPS[settings.currentMap].draw(ctx,w,h);
     ctx.strokeStyle=theme.centerLine;ctx.lineWidth=2;
     switch(theme.lineStyle){case'dashed':ctx.setLineDash([8,12]);break;case'dotted':ctx.setLineDash([3,8]);break;default:ctx.setLineDash([]);}
     ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();ctx.setLineDash([]);
@@ -1066,18 +1154,18 @@ class MenuController {
     this.menuOverlay=document.getElementById('menuOverlay');this.menuMain=document.getElementById('menuMain');
     this.menuSkins=document.getElementById('menuSkins');
     this.menuTheme=document.getElementById('menuTheme');this.menuPaddle=document.getElementById('menuPaddle');
-    this.menuBall=document.getElementById('menuBall');
+    this.menuBall=document.getElementById('menuBall');this.menuMaps=document.getElementById('menuMaps');
     this.pauseOverlay=document.getElementById('pauseOverlay');
     this.scoreboard=document.getElementById('scoreboard');this.canvas=document.getElementById('gameCanvas');
     this.controlsBar=document.getElementById('controlsBar');this.themeSwitcher=document.getElementById('themeSwitcher');
-    this._buildThemePresets();this._buildPaddleStyleButtons();this._buildBallSkinButtons();this._buildThemeDots();
+    this._buildThemePresets();this._buildPaddleStyleButtons();this._buildBallSkinButtons();this._buildMapButtons();this._buildThemeDots();
     this._bindClicks();this._bindSliders();this._bindColorPickers();this._syncUI();
   }
 
   showMainMenu(){
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
-    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));
+    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuMaps].forEach(m=>m.classList.add('hidden'));
     this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');this.canvas.classList.add('hidden');
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
@@ -1114,6 +1202,13 @@ class MenuController {
       b.addEventListener('click',()=>this._onBallSkinClick(key));g.appendChild(b);
     }
   }
+  _buildMapButtons(){
+    const g=document.getElementById('mapOptions');g.innerHTML='';
+    for(const[key,m]of Object.entries(MAPS)){
+      const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.map=key;b.textContent=m.name;
+      b.addEventListener('click',()=>{settings.currentMap=key;this._syncMapPage();});g.appendChild(b);
+    }
+  }
   _buildThemeDots(){
     const c=document.getElementById('tsDots');c.innerHTML='';
     for(const[name,theme]of Object.entries(THEMES)){
@@ -1143,6 +1238,7 @@ class MenuController {
       case'theme-page':this._showSub(this.menuTheme);this._syncThemePage();break;
       case'paddle-page':this._showSub(this.menuPaddle);this._syncPaddlePage();break;
       case'ball-page':this._showSub(this.menuBall);this._syncBallPage();break;
+      case'map-page':this._showSub(this.menuMaps);this._syncMapPage();break;
       case'back':this._showSub(this.menuMain);this._syncUI();break;
       case'sound':settings.soundEnabled=!settings.soundEnabled;this._syncUI();break;
       case'effects':settings.effectsEnabled=!settings.effectsEnabled;this._syncUI();break;
@@ -1204,6 +1300,9 @@ class MenuController {
     document.getElementById('ballSizeSlider').value=settings.ballSize;document.getElementById('ballSizeVal').textContent=settings.ballSize;
     this._renderBallPreview();
   }
+  _syncMapPage(){
+    document.querySelectorAll('#mapOptions .ball-skin-btn').forEach(b=>b.classList.toggle('active',b.dataset.map===settings.currentMap));
+  }
   _renderBallPreview(){
     const cv=document.getElementById('ballPreview');
     if(!cv||cv.classList.contains('hidden'))return;
@@ -1213,7 +1312,7 @@ class MenuController {
     BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,c,settings.ballSkin,Date.now());
   }
 
-  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
+  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuMaps].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
     document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':'POWER UPS';
@@ -1239,7 +1338,7 @@ class MenuController {
     if(e.key!=='Escape')return;
     if(!menu.menuOverlay.classList.contains('hidden')||!menu.pauseOverlay.classList.contains('hidden')){
       if(!menu.pauseOverlay.classList.contains('hidden'))menu.resumeGame();
-      else{const subs=[menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}
+      else{const subs=[menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall,menu.menuMaps];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}
       return;
     }
     if(game.state==='playing'||game.state==='serving'||game.state==='goal'){if(game.paused)menu.resumeGame();else menu.pauseGame();}

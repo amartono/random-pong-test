@@ -24,7 +24,7 @@ const CONFIG = {
 
 /* ---- power-up types ---- */
 const POWERUP_TYPES = [
-  { id:'bigPaddle',label:'BIG',color:'#44aaff',dur:480 },
+  { id:'bigPaddle',label:'BIG',color:'#44aaff',dur:960 },
   { id:'shield',   label:'S',  color:'#ffaa00',dur:0 },
   { id:'speedUp',  label:'>>', color:'#ff4444',dur:300 },
   { id:'slowOpp',  label:'<<', color:'#aa44ff',dur:480 },
@@ -778,7 +778,7 @@ class PongGame {
     this.state='idle';this.active=false;this.paused=false;this.serveDirection=1;this.serveTimer=0;this.winMessage='';
     // power-up state
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
-    this.puEffects={lBig:0,rBig:0,lShield:false,rShield:false,ballSpd:0,lSlow:0,rSlow:0};
+    this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0};
     this.ballSpeedMod=1;
     this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
     this._loop=this._loop.bind(this);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,0);this._loop(0);
@@ -820,7 +820,7 @@ class PongGame {
     this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);
     this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,1);    this.particles=[];this.serveDirection=Math.random()<.5?1:-1;
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
-    this.puEffects={lBig:0,rBig:0,lShield:false,rShield:false,ballSpd:0,lSlow:0,rSlow:0};
+    this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0};
     this.ballSpeedMod=1;
   }
 
@@ -875,11 +875,11 @@ class PongGame {
       if(this.ball.y+bw>=ry&&this.ball.y-bw<=ry+rh)this._hitPaddle(this.paddleRight,-1);
     }
     if(this.ball.x+bw<0){
-      if(this.puEffects.lShield){this.puEffects.lShield=false;this.ball.dx=Math.abs(this.ball.dx);this.ball.x=bw;if(settings.soundEnabled)this.sound.play('paddle');}
+      if(this.puEffects.lShield>0){this.puEffects.lShield--;this._shieldBreak('left');this.ball.dx=Math.abs(this.ball.dx);this.ball.x=bw;if(settings.soundEnabled)this.sound.play('paddle');}
       else{this.paddleRight.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
     }
     if(this.ball.x-bw>CONFIG.canvasWidth){
-      if(this.puEffects.rShield){this.puEffects.rShield=false;this.ball.dx=-Math.abs(this.ball.dx);this.ball.x=CONFIG.canvasWidth-bw;if(settings.soundEnabled)this.sound.play('paddle');}
+      if(this.puEffects.rShield>0){this.puEffects.rShield--;this._shieldBreak('right');this.ball.dx=-Math.abs(this.ball.dx);this.ball.x=CONFIG.canvasWidth-bw;if(settings.soundEnabled)this.sound.play('paddle');}
       else{this.paddleLeft.score++;this.serveDirection=Math.random()<.5?1:-1;this.transition('goal');}
     }
   }
@@ -925,7 +925,7 @@ class PongGame {
     const p=this.lastHitBy||'left',o=p==='left'?'right':'left';
     switch(type.id){
       case'bigPaddle':if(p==='left')this.puEffects.lBig=type.dur;else this.puEffects.rBig=type.dur;break;
-      case'shield':if(p==='left')this.puEffects.lShield=true;else this.puEffects.rShield=true;break;
+      case'shield':if(p==='left')this.puEffects.lShield++;else this.puEffects.rShield++;break;
       case'speedUp':this.puEffects.ballSpd=type.dur;break;
       case'slowOpp':if(o==='left')this.puEffects.lSlow=type.dur;else this.puEffects.rSlow=type.dur;break;
     }
@@ -935,6 +935,12 @@ class PongGame {
     if(e.lBig>0)e.lBig--;if(e.rBig>0)e.rBig--;
     if(e.lSlow>0)e.lSlow--;if(e.rSlow>0)e.rSlow--;
     if(e.ballSpd>0){e.ballSpd--;this.ballSpeedMod=1.4;if(e.ballSpd<=0)this.ballSpeedMod=1;}
+  }
+  _shieldBreak(side){
+    const x=side==='left'?4:CONFIG.canvasWidth-4;
+    for(let i=0;i<12;i++){
+      this.particles.push(new Particle(x,Math.random()*CONFIG.canvasHeight,'#ffaa00'));
+    }
   }
 
   /* ---- drawing ---- */
@@ -970,18 +976,16 @@ class PongGame {
       ctx.fillStyle='#fff';ctx.font='bold 8px "Press Start 2P",monospace';
       ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pu.type.label,pu.x,pu.y+1);
     }
-    // shield indicators
-    if(this.puEffects.lShield){
-      ctx.strokeStyle='#ffaa00';ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(this.paddleLeft.x+this.paddleLeft.width/2,this.paddleLeft.y-10,6,0,Math.PI*2);ctx.stroke();
-      ctx.fillStyle='#ffaa00';ctx.font='bold 7px "Press Start 2P",monospace';
-      ctx.textAlign='center';ctx.fillText('S',this.paddleLeft.x+this.paddleLeft.width/2,this.paddleLeft.y-9);
+    // shield barriers — faint glowing line at goal line, stacks = brighter
+    if(this.puEffects.lShield>0){
+      const a=Math.min(1,this.puEffects.lShield*.35);
+      ctx.strokeStyle=colorWithAlpha('#ffaa00',a);ctx.lineWidth=2+this.puEffects.lShield;
+      ctx.beginPath();ctx.moveTo(3,0);ctx.lineTo(3,CONFIG.canvasHeight);ctx.stroke();
     }
-    if(this.puEffects.rShield){
-      ctx.strokeStyle='#ffaa00';ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(this.paddleRight.x+this.paddleRight.width/2,this.paddleRight.y-10,6,0,Math.PI*2);ctx.stroke();
-      ctx.fillStyle='#ffaa00';ctx.font='bold 7px "Press Start 2P",monospace';
-      ctx.textAlign='center';ctx.fillText('S',this.paddleRight.x+this.paddleRight.width/2,this.paddleRight.y-9);
+    if(this.puEffects.rShield>0){
+      const a=Math.min(1,this.puEffects.rShield*.35);
+      ctx.strokeStyle=colorWithAlpha('#ffaa00',a);ctx.lineWidth=2+this.puEffects.rShield;
+      ctx.beginPath();ctx.moveTo(CONFIG.canvasWidth-3,0);ctx.lineTo(CONFIG.canvasWidth-3,CONFIG.canvasHeight);ctx.stroke();
     }
     this._drawOverlay(ctx,w,h,theme);
     this.scoreLeftEl.textContent=this.paddleLeft.score;this.scoreRightEl.textContent=this.paddleRight.score;

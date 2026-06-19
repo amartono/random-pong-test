@@ -266,6 +266,16 @@ const BallRenderer = {
       for(let k=0;k<N;k++){if(k===0)ctx.moveTo(p[k].x,p[k].y);else ctx.lineTo(p[k].x,p[k].y);}
       ctx.closePath();ctx.stroke();
     }
+    // radial seam lines: each center vertex to its perimeter pentagon's inward vertex
+    ctx.strokeStyle='#666';ctx.lineWidth=.55;
+    for(let i=0;i<N;i++){
+      ctx.beginPath();ctx.moveTo(C[i].x,C[i].y);ctx.lineTo(P[i][0].x,P[i][0].y);ctx.stroke();
+    }
+    // perimeter-to-perimeter seams: connect adjacent perimeter pentagons' outward vertices
+    for(let i=0;i<N;i++){
+      const i2=(i+1)%N;
+      ctx.beginPath();ctx.moveTo(P[i][2].x,P[i][2].y);ctx.lineTo(P[i2][4].x,P[i2][4].y);ctx.stroke();
+    }
     // ball rim
     ctx.strokeStyle='#1a1a1a';ctx.lineWidth=.85;
     ctx.beginPath();ctx.arc(x,y,r,0,T);ctx.stroke();

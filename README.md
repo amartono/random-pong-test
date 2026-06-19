@@ -28,7 +28,7 @@ First to 11, win by 2.
 - **PLAY** — start the game
 - **GAME MODE** — toggle between Classic and Power Ups mode
 - **PLAYER vs PLAYER / AI** — toggle cycles: PvP → AI Easy → AI Medium → AI Hard → PvP
-- **SKINS** — Theme, Paddles, and Ball customization pages
+- **CUSTOMIZE** — Theme, Paddles, and Ball customization pages
 - **SOUND** — toggle sound effects (procedural Web Audio, no files needed)
 - **EFFECTS** — toggle particle bursts on goals
 

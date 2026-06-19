@@ -199,49 +199,49 @@ const BallRenderer = {
     }
   },
 
-  // -- basketball: 8-panel, equator curve + V seams + cross rib, pebble texture
+  // -- basketball: rich burnt orange (#b8511a range), thick black ribs, pebble texture
   _basketball(ctx,x,y,r,c){
-    const base=blendHex(c,'#e87400',.55);
+    const base='#d45d20';
     const grad=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.08,x,y,r);
-    grad.addColorStop(0,lighten(base,.15));grad.addColorStop(.65,base);grad.addColorStop(1,darken(base,.2));
+    grad.addColorStop(0,'#ef7a29');grad.addColorStop(.5,base);grad.addColorStop(1,'#9a3a10');
     ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.3;
+    ctx.strokeStyle='#000';ctx.lineWidth=1.8;
     // equator (horizontal, bowed down)
     ctx.beginPath();ctx.moveTo(x-r+1,y);ctx.quadraticCurveTo(x,y+r*.4,x+r-1,y);ctx.stroke();
-    // center vertical seam
+    // center vertical rib
     ctx.beginPath();ctx.moveTo(x,y-r+1);ctx.lineTo(x,y+r-1);ctx.stroke();
-    // left V seam (from top pole down-left, then bottom pole)
-    ctx.beginPath();ctx.moveTo(x-1,y-r+1);
-    ctx.quadraticCurveTo(x-r*.5,y-r*.15,x-r*.4,y);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x-1,y+r-1);
-    ctx.quadraticCurveTo(x-r*.5,y+r*.15,x-r*.4,y);ctx.stroke();
-    // right V seam
-    ctx.beginPath();ctx.moveTo(x+1,y-r+1);
-    ctx.quadraticCurveTo(x+r*.5,y-r*.15,x+r*.4,y);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x+1,y+r-1);
-    ctx.quadraticCurveTo(x+r*.5,y+r*.15,x+r*.4,y);ctx.stroke();
+    // left V rib
+    ctx.beginPath();ctx.moveTo(x-1,y-r+1);ctx.quadraticCurveTo(x-r*.5,y-r*.15,x-r*.4,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x-1,y+r-1);ctx.quadraticCurveTo(x-r*.5,y+r*.15,x-r*.4,y);ctx.stroke();
+    // right V rib
+    ctx.beginPath();ctx.moveTo(x+1,y-r+1);ctx.quadraticCurveTo(x+r*.5,y-r*.15,x+r*.4,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x+1,y+r-1);ctx.quadraticCurveTo(x+r*.5,y+r*.15,x+r*.4,y);ctx.stroke();
     // outline
-    ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
     // pebble dots
     const dots=this._bballDots||(this._bballDots=Array.from({length:50},()=>({a:Math.random()*Math.PI*2,d:.08+Math.random()*.82})));
-    ctx.fillStyle='rgba(0,0,0,.06)';
+    ctx.fillStyle='rgba(0,0,0,.07)';
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: truncated icosahedron — center pentagon, outer pentagons, interlocking seam web
+  // -- soccer: stark white/black contrast, deep black pentagons, clean seam web
   _soccer(ctx,x,y,r){
-    ctx.fillStyle='#f5f5f5';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    const pr=r*.34, or=r*.78, opr=r*.18;
+    const grad=ctx.createRadialGradient(x-r*.2,y-r*.2,r*.05,x,y,r);
+    grad.addColorStop(0,'#ffffff');grad.addColorStop(.8,'#f0f0f0');grad.addColorStop(1,'#d8d8d8');
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    const pr=r*.34, or=r*.78, opr=r*.16;
     const ca=Array.from({length:5},(_,i)=>(Math.PI*2/5)*i-Math.PI/2);
+    // fill seam regions in black first (creates solid black base)
+    ctx.fillStyle='#000';
     // center pentagon
-    ctx.fillStyle='#1a1a1a';ctx.beginPath();
+    ctx.beginPath();
     for(let i=0;i<5;i++){const px=x+Math.cos(ca[i])*pr,py=y+Math.sin(ca[i])*pr;
       if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}
     ctx.closePath();ctx.fill();
     // 5 outer pentagons
     for(let i=0;i<5;i++){
       const ocx=x+Math.cos(ca[i])*or,ocy=y+Math.sin(ca[i])*or;
-      ctx.fillStyle='#1a1a1a';ctx.beginPath();
+      ctx.beginPath();
       for(let j=0;j<5;j++){
         const a=ca[i]+Math.PI/2+(Math.PI*2/5)*j;
         const ox=ocx+Math.cos(a)*opr,oy=ocy+Math.sin(a)*opr;
@@ -249,21 +249,18 @@ const BallRenderer = {
       }
       ctx.closePath();ctx.fill();
     }
-    // seam web: center pentagon vertices connect to adjacent outer pentagon vertices
-    ctx.strokeStyle='#444';ctx.lineWidth=.8;
+    // thick black seam lines connecting everything
+    ctx.strokeStyle='#000';ctx.lineWidth=1.4;
     for(let i=0;i<5;i++){
       const cvx=x+Math.cos(ca[i])*pr,cvy=y+Math.sin(ca[i])*pr;
-      // two outer pentagons adjacent to this center vertex
       for(let k=-1;k<=0;k++){
         const oi=(i+k+5)%5;
         const ocx=x+Math.cos(ca[oi])*or,ocy=y+Math.sin(ca[oi])*or;
-        // this outer pentagon's vertex facing the center vertex
         const ova=ca[oi]+Math.PI/2+Math.PI*2/5*(k===0?1:3);
         const ovx=ocx+Math.cos(ova)*opr,ovy=ocy+Math.sin(ova)*opr;
         ctx.beginPath();ctx.moveTo(cvx,cvy);ctx.lineTo(ovx,ovy);ctx.stroke();
       }
     }
-    // connect outer pentagons to each other (the inter-pentagon seams)
     for(let i=0;i<5;i++){
       const ni=(i+1)%5;
       const oc1x=x+Math.cos(ca[i])*or,oc1y=y+Math.sin(ca[i])*or;
@@ -274,28 +271,28 @@ const BallRenderer = {
       const p2x=oc2x+Math.cos(a2)*opr,p2y=oc2y+Math.sin(a2)*opr;
       ctx.beginPath();ctx.moveTo(p1x,p1y);ctx.lineTo(p2x,p2y);ctx.stroke();
     }
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
-  // -- tennis: yellow-green gradient, dual seam curves, fuzzy edge
+  // -- tennis: golden yellow (#dcd214), two crossing white seam curves, fuzzy edge
   _tennis(ctx,x,y,r,c){
-    const base=blendHex(c,'#ccff00',.5);
+    const base='#dcd214';
     const grad=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.08,x,y,r);
-    grad.addColorStop(0,lighten(base,.2));grad.addColorStop(.7,base);grad.addColorStop(1,darken(base,.15));
+    grad.addColorStop(0,'#f0e830');grad.addColorStop(.6,base);grad.addColorStop(1,'#b8a808');
     ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    // seam line 1: top-right to bottom-left
-    ctx.strokeStyle='#fafaf0';ctx.lineWidth=1.4;
-    ctx.beginPath();ctx.moveTo(x+r*.65,y-r*.55);
-    ctx.quadraticCurveTo(x,y,x-r*.65,y+r*.55);ctx.stroke();
-    // seam line 2: top-left to bottom-right
-    ctx.beginPath();ctx.moveTo(x-r*.65,y-r*.55);
-    ctx.quadraticCurveTo(x,y,x+r*.65,y+r*.55);ctx.stroke();
-    // fuzzy edge texture — small dashes around perimeter
-    ctx.strokeStyle='rgba(255,255,240,.35)';ctx.lineWidth=.6;
-    for(let i=0;i<16;i++){
-      const a=Math.PI*2/16*i,bx=x+Math.cos(a)*r*.9,by=y+Math.sin(a)*r*.9;
+    // seam 1: top-right to bottom-left
+    ctx.strokeStyle='#fafaf0';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(x+r*.6,y-r*.5);
+    ctx.quadraticCurveTo(x,y,x-r*.6,y+r*.5);ctx.stroke();
+    // seam 2: top-left to bottom-right
+    ctx.beginPath();ctx.moveTo(x-r*.6,y-r*.5);
+    ctx.quadraticCurveTo(x,y,x+r*.6,y+r*.5);ctx.stroke();
+    // fuzzy edge dashes
+    ctx.strokeStyle='rgba(255,255,240,.3)';ctx.lineWidth=.5;
+    for(let i=0;i<14;i++){
+      const a=Math.PI*2/14*i,bx=x+Math.cos(a)*r*.85,by=y+Math.sin(a)*r*.85;
       ctx.beginPath();ctx.moveTo(bx,by);
-      ctx.lineTo(x+Math.cos(a)*r*1.02,y+Math.sin(a)*r*1.02);ctx.stroke();
+      ctx.lineTo(x+Math.cos(a)*r*1.03,y+Math.sin(a)*r*1.03);ctx.stroke();
     }
   },
 
@@ -336,31 +333,24 @@ const BallRenderer = {
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
-  // -- earth: ocean gradient, clustered continents, cloud bands, atmospheric rim
+  // -- earth: bright cyan ocean (#00ccff), green continents (#009933), white clouds
   _earth(ctx,x,y,r){
-    const og=ctx.createRadialGradient(x+r*.1,y+r*.1,r*.3,x,y,r);
-    og.addColorStop(0,'#3399ee');og.addColorStop(.7,'#1155aa');og.addColorStop(1,'#0a3366');
-    ctx.fillStyle=og;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#00ccff';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
     ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
-    // north america-ish
-    ctx.fillStyle='#44bb44';this._blob(ctx,x-r*.30,y-r*.35,r*.35,r*.30,0);
-    // south america-ish
-    ctx.fillStyle='#3aaa3a';this._blob(ctx,x-r*.15,y+r*.15,r*.18,r*.35,15);
-    // europe/asia-ish
-    ctx.fillStyle='#4cb84c';this._blob(ctx,x+r*.10,y-r*.30,r*.40,r*.18,1);
-    // africa-ish
-    ctx.fillStyle='#50c050';this._blob(ctx,x+.05,y+.25,r*.22,r*.35,16);
-    // australia-ish
-    ctx.fillStyle='#3a993a';this._blob(ctx,x+r*.35,y+r*.40,r*.14,r*.12,17);
-    // greenland-ish
-    ctx.fillStyle='#55cc55';this._blob(ctx,x-r*.10,y-r*.55,r*.12,r*.10,18);
-    // clouds
-    ctx.fillStyle='rgba(255,255,255,.30)';
+    ctx.fillStyle='#009933';
+    this._blob(ctx,x-r*.30,y-r*.35,r*.35,r*.30,0);
+    this._blob(ctx,x-r*.15,y+r*.15,r*.18,r*.35,15);
+    ctx.fillStyle='#00a838';
+    this._blob(ctx,x+r*.10,y-r*.30,r*.40,r*.18,1);
+    this._blob(ctx,x+.05,y+.25,r*.22,r*.35,16);
+    this._blob(ctx,x+r*.35,y+r*.40,r*.14,r*.12,17);
+    this._blob(ctx,x-r*.10,y-r*.55,r*.12,r*.10,18);
+    ctx.fillStyle='rgba(255,255,255,.35)';
     this._blob(ctx,x-r*.25,y+r*.05,r*.18,r*.06,6);
     this._blob(ctx,x+r*.20,y-r*.20,r*.16,r*.05,7);
     this._blob(ctx,x+.00,y+r*.05,r*.20,r*.04,9);
     ctx.restore();
-    ctx.strokeStyle='rgba(120,200,255,.45)';ctx.lineWidth=1.2;
+    ctx.strokeStyle='rgba(0,180,220,.4)';ctx.lineWidth=1;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 

@@ -199,67 +199,82 @@ const BallRenderer = {
     }
   },
 
-  // -- basketball: 4-panel pattern, equator + 2 vertical seams, pebble texture
+  // -- basketball: 8-panel, equator curve + V seams + cross rib, pebble texture
   _basketball(ctx,x,y,r,c){
     const base=blendHex(c,'#e87400',.55);
-    const grad=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.1,x,y,r);
-    grad.addColorStop(0,lighten(base,.15));grad.addColorStop(.7,base);grad.addColorStop(1,darken(base,.2));
+    const grad=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.08,x,y,r);
+    grad.addColorStop(0,lighten(base,.15));grad.addColorStop(.65,base);grad.addColorStop(1,darken(base,.2));
     ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    // equator line (horizontal, curved)
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.4;
-    ctx.beginPath();ctx.moveTo(x-r,y);
-    ctx.quadraticCurveTo(x,y+r*.35,x+r,y);ctx.stroke();
-    // left panel seam (vertical, curved left)
-    ctx.beginPath();ctx.moveTo(x,y-r);
-    ctx.bezierCurveTo(x-r*.35,y-r*.2,x-r*.35,y+r*.2,x,y+r);ctx.stroke();
-    // right panel seam (vertical, curved right)
-    ctx.beginPath();ctx.moveTo(x,y-r);
-    ctx.bezierCurveTo(x+r*.35,y-r*.2,x+r*.35,y+r*.2,x,y+r);ctx.stroke();
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.3;
+    // equator (horizontal, bowed down)
+    ctx.beginPath();ctx.moveTo(x-r+1,y);ctx.quadraticCurveTo(x,y+r*.4,x+r-1,y);ctx.stroke();
+    // center vertical seam
+    ctx.beginPath();ctx.moveTo(x,y-r+1);ctx.lineTo(x,y+r-1);ctx.stroke();
+    // left V seam (from top pole down-left, then bottom pole)
+    ctx.beginPath();ctx.moveTo(x-1,y-r+1);
+    ctx.quadraticCurveTo(x-r*.5,y-r*.15,x-r*.4,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x-1,y+r-1);
+    ctx.quadraticCurveTo(x-r*.5,y+r*.15,x-r*.4,y);ctx.stroke();
+    // right V seam
+    ctx.beginPath();ctx.moveTo(x+1,y-r+1);
+    ctx.quadraticCurveTo(x+r*.5,y-r*.15,x+r*.4,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x+1,y+r-1);
+    ctx.quadraticCurveTo(x+r*.5,y+r*.15,x+r*.4,y);ctx.stroke();
     // outline
-    ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
     // pebble dots
-    const dots=this._bballDots||(this._bballDots=Array.from({length:40},()=>({a:Math.random()*Math.PI*2,d:.12+Math.random()*.78})));
-    ctx.fillStyle='rgba(0,0,0,.07)';
-    for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.5,0,Math.PI*2);ctx.fill();}
+    const dots=this._bballDots||(this._bballDots=Array.from({length:50},()=>({a:Math.random()*Math.PI*2,d:.08+Math.random()*.82})));
+    ctx.fillStyle='rgba(0,0,0,.06)';
+    for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: truncated icosahedron pattern — center pentagon, 5 edge pentagons, seam lines
+  // -- soccer: truncated icosahedron — center pentagon, outer pentagons, interlocking seam web
   _soccer(ctx,x,y,r){
     ctx.fillStyle='#f5f5f5';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1;
-    // center black pentagon
-    const pr=r*.35;ctx.fillStyle='#1a1a1a';ctx.beginPath();
-    for(let i=0;i<5;i++){const a=Math.PI*2/5*i-Math.PI/2;const px=x+Math.cos(a)*pr,py=y+Math.sin(a)*pr;
+    const pr=r*.34, or=r*.78, opr=r*.18;
+    const ca=Array.from({length:5},(_,i)=>(Math.PI*2/5)*i-Math.PI/2);
+    // center pentagon
+    ctx.fillStyle='#1a1a1a';ctx.beginPath();
+    for(let i=0;i<5;i++){const px=x+Math.cos(ca[i])*pr,py=y+Math.sin(ca[i])*pr;
       if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}
     ctx.closePath();ctx.fill();
-    // 5 outer black pentagons at edge
-    for(let j=0;j<5;j++){
-      const ca=Math.PI*2/5*j-Math.PI/2,or=r*.72; // center of outer pentagon
-      const ox=x+Math.cos(ca)*or,oy=y+Math.sin(ca)*or;
-      const opr=r*.16;ctx.fillStyle='#1a1a1a';ctx.beginPath();
-      for(let i=0;i<5;i++){
-        const a=Math.PI*2/5*i+ca+Math.PI/2;const px=ox+Math.cos(a)*opr,py=oy+Math.sin(a)*opr;
-        if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+    // 5 outer pentagons
+    for(let i=0;i<5;i++){
+      const ocx=x+Math.cos(ca[i])*or,ocy=y+Math.sin(ca[i])*or;
+      ctx.fillStyle='#1a1a1a';ctx.beginPath();
+      for(let j=0;j<5;j++){
+        const a=ca[i]+Math.PI/2+(Math.PI*2/5)*j;
+        const ox=ocx+Math.cos(a)*opr,oy=ocy+Math.sin(a)*opr;
+        if(j===0)ctx.moveTo(ox,oy);else ctx.lineTo(ox,oy);
       }
       ctx.closePath();ctx.fill();
     }
-    // seam lines: center pentagon vertices to outer pentagon inner vertices
-    ctx.strokeStyle='#555';ctx.lineWidth=.7;
-    for(let j=0;j<5;j++){
-      const ca=Math.PI*2/5*j-Math.PI/2;
-      const sx=x+Math.cos(ca)*pr,sy=y+Math.sin(ca)*pr; // center vertex
-      // two lines from each center vertex to each neighboring outer pentagon
+    // seam web: center pentagon vertices connect to adjacent outer pentagon vertices
+    ctx.strokeStyle='#444';ctx.lineWidth=.8;
+    for(let i=0;i<5;i++){
+      const cvx=x+Math.cos(ca[i])*pr,cvy=y+Math.sin(ca[i])*pr;
+      // two outer pentagons adjacent to this center vertex
       for(let k=-1;k<=0;k++){
-        const oca=Math.PI*2/5*(j+k)-Math.PI/2,or=r*.72,oopr=r*.16;
-        const ox=x+Math.cos(oca)*or,oy=y+Math.sin(oca)*or;
-        // inner vertex of outer pentagon (facing center)
-        const ova=oca-Math.PI/2;
-        const ovx=ox+Math.cos(ova)*oopr,ovy=oy+Math.sin(ova)*oopr;
-        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ovx,ovy);ctx.stroke();
+        const oi=(i+k+5)%5;
+        const ocx=x+Math.cos(ca[oi])*or,ocy=y+Math.sin(ca[oi])*or;
+        // this outer pentagon's vertex facing the center vertex
+        const ova=ca[oi]+Math.PI/2+Math.PI*2/5*(k===0?1:3);
+        const ovx=ocx+Math.cos(ova)*opr,ovy=ocy+Math.sin(ova)*opr;
+        ctx.beginPath();ctx.moveTo(cvx,cvy);ctx.lineTo(ovx,ovy);ctx.stroke();
       }
     }
-    // outline
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1.1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    // connect outer pentagons to each other (the inter-pentagon seams)
+    for(let i=0;i<5;i++){
+      const ni=(i+1)%5;
+      const oc1x=x+Math.cos(ca[i])*or,oc1y=y+Math.sin(ca[i])*or;
+      const oc2x=x+Math.cos(ca[ni])*or,oc2y=y+Math.sin(ca[ni])*or;
+      const a1=ca[i]+Math.PI/2+Math.PI*2/5*4;
+      const a2=ca[ni]+Math.PI/2+Math.PI*2/5*2;
+      const p1x=oc1x+Math.cos(a1)*opr,p1y=oc1y+Math.sin(a1)*opr;
+      const p2x=oc2x+Math.cos(a2)*opr,p2y=oc2y+Math.sin(a2)*opr;
+      ctx.beginPath();ctx.moveTo(p1x,p1y);ctx.lineTo(p2x,p2y);ctx.stroke();
+    }
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
   // -- tennis: yellow-green gradient, dual seam curves, fuzzy edge
@@ -284,61 +299,68 @@ const BallRenderer = {
     }
   },
 
-  // -- 8-ball: black sphere with white number plate, highlight shine
+  // -- 8-ball: glossy black, white number circle with border, specular highlight
   _8ball(ctx,x,y,r){
-    const grad=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.08,x,y,r);
-    grad.addColorStop(0,'#2a2a2a');grad.addColorStop(.85,'#111');grad.addColorStop(1,'#000');
+    const grad=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.06,x,y,r);
+    grad.addColorStop(0,'#333');grad.addColorStop(.82,'#111');grad.addColorStop(1,'#000');
     ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.48,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#aaa';ctx.lineWidth=.5;ctx.beginPath();ctx.arc(x,y,r*.48,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle='#111';ctx.font=`bold ${r*.72}px "Press Start 2P",monospace`;
-    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('8',x,y+.5);
-    ctx.fillStyle='rgba(255,255,255,.25)';ctx.beginPath();ctx.arc(x-r*.22,y-r*.28,r*.14,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#444';ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#333';ctx.lineWidth=.7;ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#111';ctx.font=`900 ${r*1.05}px Arial,Helvetica,sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('8',x,y+1);
+    ctx.fillStyle='rgba(255,255,255,.22)';ctx.beginPath();ctx.ellipse(x-r*.20,y-r*.28,r*.18,r*.10,-.4,0,Math.PI*2);ctx.fill();
   },
 
-  // -- beachball: 6 colored wedges with 3D shading and white divider seams
+  // -- beachball: 6 alternating panels, 3D shading, white pole dots, valve dot
   _beachball(ctx,x,y,r){
     const cols=['#ffffff','#ee3333','#ffdd00','#3366ff','#ff8800','#33cc44'];
-    const dark=['#d8d8d8','#c02020','#dbb800','#2044cc','#d87000','#20a030'];
     for(let i=0;i<6;i++){
-      const a0=Math.PI*2/6*i-Math.PI*.5,a1=a0+Math.PI*2/6;
-      const g=ctx.createRadialGradient(x,y,r*.05,x,y,r);
-      g.addColorStop(0,cols[i]);g.addColorStop(.7,cols[i]);g.addColorStop(1,dark[i]);
+      const a0=Math.PI*2/6*i-Math.PI*.5,a1=a0+Math.PI*2/6,am=(a0+a1)/2;
+      const g=ctx.createRadialGradient(x+Math.cos(am)*r*.3,y+Math.sin(am)*r*.3,0,x,y,r);
+      g.addColorStop(0,cols[i]);g.addColorStop(.65,cols[i]);g.addColorStop(1,darken(cols[i],.2));
       ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(x,y);
       ctx.arc(x,y,r,a0,a1);ctx.closePath();ctx.fill();
     }
-    // white divider lines
-    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=.8;
     for(let i=0;i<6;i++){
       const a=Math.PI*2/6*i-Math.PI*.5;
-      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);ctx.stroke();
+      ctx.strokeStyle='rgba(0,0,0,.15)';ctx.lineWidth=.7;
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(a)*r*.9,y+Math.sin(a)*r*.9);ctx.stroke();
     }
-    ctx.strokeStyle='rgba(0,0,0,.2)';ctx.lineWidth=1;
+    // white pole cap
+    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.22,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.2)';ctx.lineWidth=.5;ctx.beginPath();ctx.arc(x,y,r*.22,0,Math.PI*2);ctx.stroke();
+    // valve dot
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.arc(x,y,r*.06,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.15)';ctx.lineWidth=1;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 
-  // -- earth: blue ocean gradient, varied continents, clouds, atmospheric rim
+  // -- earth: ocean gradient, clustered continents, cloud bands, atmospheric rim
   _earth(ctx,x,y,r){
-    const og=ctx.createRadialGradient(x,y,r*.4,x,y,r);
-    og.addColorStop(0,'#3388dd');og.addColorStop(1,'#114488');
+    const og=ctx.createRadialGradient(x+r*.1,y+r*.1,r*.3,x,y,r);
+    og.addColorStop(0,'#3399ee');og.addColorStop(.7,'#1155aa');og.addColorStop(1,'#0a3366');
     ctx.fillStyle=og;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
     ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
-    ctx.fillStyle='#44bb44';
-    this._blob(ctx,x-r*.35,y-r*.25,r*.45,r*.30,0);
-    this._blob(ctx,x+r*.15,y+r*.15,r*.35,r*.25,1);
-    this._blob(ctx,x+r*.20,y-r*.45,r*.30,r*.22,2);
-    this._blob(ctx,x-r*.10,y+r*.50,r*.25,r*.18,3);
-    this._blob(ctx,x+r*.30,y-r*.05,r*.18,r*.14,4);
-    ctx.fillStyle='#55cc44';
-    this._blob(ctx,x+r*.05,y+r*.35,r*.18,r*.12,5);
-    this._blob(ctx,x-r*.40,y+r*.15,r*.16,r*.10,8);
-    ctx.fillStyle='rgba(255,255,255,.40)';
-    this._blob(ctx,x-r*.20,y+r*.20,r*.22,r*.08,6);
-    this._blob(ctx,x+r*.25,y-r*.30,r*.20,r*.06,7);
-    this._blob(ctx,x-r*.05,y-r*.10,r*.25,r*.05,9);
+    // north america-ish
+    ctx.fillStyle='#44bb44';this._blob(ctx,x-r*.30,y-r*.35,r*.35,r*.30,0);
+    // south america-ish
+    ctx.fillStyle='#3aaa3a';this._blob(ctx,x-r*.15,y+r*.15,r*.18,r*.35,15);
+    // europe/asia-ish
+    ctx.fillStyle='#4cb84c';this._blob(ctx,x+r*.10,y-r*.30,r*.40,r*.18,1);
+    // africa-ish
+    ctx.fillStyle='#50c050';this._blob(ctx,x+.05,y+.25,r*.22,r*.35,16);
+    // australia-ish
+    ctx.fillStyle='#3a993a';this._blob(ctx,x+r*.35,y+r*.40,r*.14,r*.12,17);
+    // greenland-ish
+    ctx.fillStyle='#55cc55';this._blob(ctx,x-r*.10,y-r*.55,r*.12,r*.10,18);
+    // clouds
+    ctx.fillStyle='rgba(255,255,255,.30)';
+    this._blob(ctx,x-r*.25,y+r*.05,r*.18,r*.06,6);
+    this._blob(ctx,x+r*.20,y-r*.20,r*.16,r*.05,7);
+    this._blob(ctx,x+.00,y+r*.05,r*.20,r*.04,9);
     ctx.restore();
-    ctx.strokeStyle='rgba(100,180,255,.5)';ctx.lineWidth=1.2;
+    ctx.strokeStyle='rgba(120,200,255,.45)';ctx.lineWidth=1.2;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
   },
 

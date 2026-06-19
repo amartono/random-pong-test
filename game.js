@@ -224,59 +224,27 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: truncated icosahedron tessellation — black pentagons, white hexagons, shared edges
+  // -- soccer: pentagons-on-white — black pentagons on white circle, hexagons are the space between
   _soccer(ctx,x,y,r){
     const T=Math.PI*2, N=5;
-    const aCen=Array.from({length:N},(_,i)=>T/N*i-Math.PI/2);
-    const cpr=r*.26; // center pentagon circumradius
+    const θ=Array.from({length:N},(_,i)=>T/N*i-Math.PI/2);
     // center pentagon vertices
-    const C=aCen.map(a=>({x:x+Math.cos(a)*cpr,y:y+Math.sin(a)*cpr}));
-    // perimeter pentagon parameters
-    const pDist=r*.58, pRad=r*.14;
-    // compute perimeter pentagon vertices P[i][k]
-    const P=aCen.map((ac,i)=>{
-      const pcx=x+Math.cos(ac)*pDist, pcy=y+Math.sin(ac)*pDist;
+    const cr=r*.24;
+    const C=θ.map(a=>({x:x+Math.cos(a)*cr, y:y+Math.sin(a)*cr}));
+    // perimeter pentagon positions — each at same angle, further out, rotated to face center
+    const pd=r*.56, pr=r*.13;
+    const P=θ.map(a=>{
+      const cx=x+Math.cos(a)*pd, cy=y+Math.sin(a)*pd;
       return Array.from({length:N},(_,k)=>({
-        x:pcx+Math.cos(ac+Math.PI+T/N*k)*pRad,
-        y:pcy+Math.sin(ac+Math.PI+T/N*k)*pRad,
+        x:cx+Math.cos(a+Math.PI+T/N*k)*pr,
+        y:cy+Math.sin(a+Math.PI+T/N*k)*pr,
       }));
     });
-    // compute outer rim points between adjacent perimeter pentagons
-    const rim=[];
-    for(let i=0;i<N;i++){
-      const i2=(i+1)%N, ma=(aCen[i]+aCen[i2])/2;
-      rim.push({x:x+Math.cos(ma)*r*.92,y:y+Math.sin(ma)*r*.92});
-    }
 
-    // fill entire ball white
+    // white base circle
     ctx.fillStyle='#f4f4f4';ctx.beginPath();ctx.arc(x,y,r,0,T);ctx.fill();
 
-    // draw inner white hexagons (between center pentagon and two perimeter pentagons)
-    for(let i=0;i<N;i++){
-      const i2=(i+1)%N;
-      ctx.beginPath();
-      ctx.moveTo(C[i].x,C[i].y);
-      ctx.lineTo(P[i][4].x,P[i][4].y);
-      ctx.lineTo(P[i][3].x,P[i][3].y);
-      ctx.lineTo(P[i2][1].x,P[i2][1].y);
-      ctx.lineTo(P[i2][0].x,P[i2][0].y);
-      ctx.lineTo(C[i2].x,C[i2].y);
-      ctx.closePath();ctx.fill();
-    }
-
-    // draw outer white fragments (between perimeter pentagons, to the rim)
-    for(let i=0;i<N;i++){
-      const i2=(i+1)%N;
-      ctx.beginPath();
-      ctx.moveTo(P[i][3].x,P[i][3].y);
-      ctx.lineTo(P[i][2].x,P[i][2].y);
-      ctx.lineTo(P[i][1].x,P[i][1].y);
-      ctx.lineTo(rim[i].x,rim[i].y);
-      ctx.lineTo(P[i2][4].x,P[i2][4].y);
-      ctx.closePath();ctx.fill();
-    }
-
-    // draw black pentagons
+    // black pentagons
     ctx.fillStyle='#1a1a1a';
     ctx.beginPath();
     for(let i=0;i<N;i++){if(i===0)ctx.moveTo(C[i].x,C[i].y);else ctx.lineTo(C[i].x,C[i].y);}
@@ -287,36 +255,18 @@ const BallRenderer = {
       ctx.closePath();ctx.fill();
     }
 
-    // seam lines — all shared polygon edges
-    ctx.strokeStyle='#555';ctx.lineWidth=.65;
-    // center pentagon outline
+    // seam outlines — every pentagon edge
+    ctx.strokeStyle='#666';ctx.lineWidth=.6;
+    ctx.lineJoin='round';
     ctx.beginPath();
     for(let i=0;i<N;i++){if(i===0)ctx.moveTo(C[i].x,C[i].y);else ctx.lineTo(C[i].x,C[i].y);}
     ctx.closePath();ctx.stroke();
-    // perimeter pentagon outlines
     for(const p of P){
       ctx.beginPath();
       for(let k=0;k<N;k++){if(k===0)ctx.moveTo(p[k].x,p[k].y);else ctx.lineTo(p[k].x,p[k].y);}
       ctx.closePath();ctx.stroke();
     }
-    // inner hexagon outlines
-    for(let i=0;i<N;i++){
-      const i2=(i+1)%N;
-      ctx.beginPath();
-      ctx.moveTo(C[i].x,C[i].y);ctx.lineTo(P[i][4].x,P[i][4].y);
-      ctx.lineTo(P[i][3].x,P[i][3].y);ctx.lineTo(P[i2][1].x,P[i2][1].y);
-      ctx.lineTo(P[i2][0].x,P[i2][0].y);ctx.lineTo(C[i2].x,C[i2].y);
-      ctx.closePath();ctx.stroke();
-    }
-    // outer fragment outlines
-    for(let i=0;i<N;i++){
-      const i2=(i+1)%N;
-      ctx.beginPath();
-      ctx.moveTo(P[i][3].x,P[i][3].y);ctx.lineTo(P[i][2].x,P[i][2].y);
-      ctx.lineTo(P[i][1].x,P[i][1].y);ctx.lineTo(rim[i].x,rim[i].y);
-      ctx.lineTo(P[i2][4].x,P[i2][4].y);ctx.lineTo(P[i2][3].x,P[i2][3].y);
-      ctx.closePath();ctx.stroke();
-    }
+    // ball rim
     ctx.strokeStyle='#1a1a1a';ctx.lineWidth=.85;
     ctx.beginPath();ctx.arc(x,y,r,0,T);ctx.stroke();
   },

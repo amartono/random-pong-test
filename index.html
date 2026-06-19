@@ -32,8 +32,8 @@
       <div class="menu-screen" id="menuMain">
         <h1 class="menu-title">PONG</h1>
         <button class="menu-btn" data-action="play">PLAY</button>
-        <button class="menu-btn" data-action="mode">
-          MODE: <span id="modeLabel">PvP</span>
+        <button class="menu-btn toggle-mode" data-action="cycle-mode">
+          <span id="modeLabel">PLAYER vs PLAYER</span>
         </button>
         <button class="menu-btn" data-action="skins">SKINS</button>
         <button class="menu-btn toggle" data-action="sound">
@@ -42,20 +42,6 @@
         <button class="menu-btn toggle" data-action="effects">
           EFFECTS: <span id="effectsLabel">ON</span>
         </button>
-      </div>
-
-      <!-- Mode Selection -->
-      <div class="menu-screen hidden" id="menuMode">
-        <h2 class="menu-subtitle">GAME MODE</h2>
-        <button class="menu-btn mode-choice" data-action="mode-pvp">PLAYER vs PLAYER</button>
-        <button class="menu-btn mode-choice" data-action="mode-ai">PLAYER vs AI</button>
-        <div id="difficultyGroup" class="hidden">
-          <p class="menu-label">DIFFICULTY</p>
-          <button class="menu-btn diff-choice" data-action="diff-easy">EASY</button>
-          <button class="menu-btn diff-choice" data-action="diff-medium">MEDIUM</button>
-          <button class="menu-btn diff-choice" data-action="diff-hard">HARD</button>
-        </div>
-        <button class="menu-btn back-btn" data-action="back">BACK</button>
       </div>
 
       <!-- Skins Hub -->

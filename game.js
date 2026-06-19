@@ -910,7 +910,7 @@ class MenuController {
   constructor(game){
     this.game=game;
     this.menuOverlay=document.getElementById('menuOverlay');this.menuMain=document.getElementById('menuMain');
-    this.menuMode=document.getElementById('menuMode');this.menuSkins=document.getElementById('menuSkins');
+    this.menuSkins=document.getElementById('menuSkins');
     this.menuTheme=document.getElementById('menuTheme');this.menuPaddle=document.getElementById('menuPaddle');
     this.menuBall=document.getElementById('menuBall');
     this.pauseOverlay=document.getElementById('pauseOverlay');
@@ -923,7 +923,7 @@ class MenuController {
   showMainMenu(){
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
-    [this.menuMode,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));
+    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));
     this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');this.canvas.classList.add('hidden');
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
@@ -975,7 +975,13 @@ class MenuController {
   _onAction(a){
     switch(a){
       case'play':this.startGame();break;
-      case'mode':this._showSub(this.menuMode);this._highlightActiveMode();break;
+      case'cycle-mode':{
+        if(settings.gameMode==='pvp'){settings.gameMode='ai';settings.difficulty='easy';}
+        else if(settings.difficulty==='easy')settings.difficulty='medium';
+        else if(settings.difficulty==='medium')settings.difficulty='hard';
+        else{settings.gameMode='pvp';}
+        this._syncUI();this._updateControlsBar();break;
+      }
       case'skins':this._showSub(this.menuSkins);break;
       case'theme-page':this._showSub(this.menuTheme);this._syncThemePage();break;
       case'paddle-page':this._showSub(this.menuPaddle);this._syncPaddlePage();break;
@@ -983,11 +989,6 @@ class MenuController {
       case'back':this._showSub(this.menuMain);this._syncUI();break;
       case'sound':settings.soundEnabled=!settings.soundEnabled;this._syncUI();break;
       case'effects':settings.effectsEnabled=!settings.effectsEnabled;this._syncUI();break;
-      case'mode-pvp':settings.gameMode='pvp';this._highlightActiveMode();this._updateControlsBar();break;
-      case'mode-ai':settings.gameMode='ai';this._highlightActiveMode();this._updateControlsBar();break;
-      case'diff-easy':settings.difficulty='easy';this._highlightActiveMode();break;
-      case'diff-medium':settings.difficulty='medium';this._highlightActiveMode();break;
-      case'diff-hard':settings.difficulty='hard';this._highlightActiveMode();break;
       case'reset-paddle-left':settings.customPaddleLeft=null;document.getElementById('paddleLeftColor').value=THEMES[settings.theme].paddleLeft;this.game._applyThemeAndColors();this._syncPaddlePage();break;
       case'reset-paddle-right':settings.customPaddleRight=null;document.getElementById('paddleRightColor').value=THEMES[settings.theme].paddleRight;this.game._applyThemeAndColors();this._syncPaddlePage();break;
       case'reset-paddle-width':settings.paddleWidth=14;document.getElementById('paddleWidthSlider').value=14;document.getElementById('paddleWidthVal').textContent=14;this.game._syncDimensions();break;
@@ -1055,19 +1056,11 @@ class MenuController {
     BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,c,settings.ballSkin,Date.now());
   }
 
-  _showSub(active){[this.menuMain,this.menuMode,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
+  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
-    document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'vs AI ('+settings.difficulty.toUpperCase()+')':'PvP';
+    document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
     const sl=document.getElementById('soundLabel'),sb=sl.parentElement;sl.textContent=settings.soundEnabled?'ON':'OFF';sb.classList.toggle('on',settings.soundEnabled);sb.classList.toggle('off',!settings.soundEnabled);
     const el=document.getElementById('effectsLabel'),eb=el.parentElement;el.textContent=settings.effectsEnabled?'ON':'OFF';eb.classList.toggle('on',settings.effectsEnabled);eb.classList.toggle('off',!settings.effectsEnabled);
-  }
-  _highlightActiveMode(){
-    document.getElementById('difficultyGroup').classList.toggle('hidden',settings.gameMode!=='ai');
-    document.querySelector('[data-action="mode-pvp"]').classList.toggle('active',settings.gameMode==='pvp');
-    document.querySelector('[data-action="mode-ai"]').classList.toggle('active',settings.gameMode==='ai');
-    document.querySelectorAll('.diff-choice').forEach(b=>b.classList.remove('active'));
-    const ad=document.querySelector('[data-action="diff-'+settings.difficulty+'"]');if(ad)ad.classList.add('active');
-    this._syncUI();
   }
   _updateControlsBar(){
     const p2=document.getElementById('p2Controls');
@@ -1088,7 +1081,7 @@ class MenuController {
     if(e.key!=='Escape')return;
     if(!menu.menuOverlay.classList.contains('hidden')||!menu.pauseOverlay.classList.contains('hidden')){
       if(!menu.pauseOverlay.classList.contains('hidden'))menu.resumeGame();
-      else{const subs=[menu.menuMode,menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}
+      else{const subs=[menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}
       return;
     }
     if(game.state==='playing'||game.state==='serving'||game.state==='goal'){if(game.paused)menu.resumeGame();else menu.pauseGame();}

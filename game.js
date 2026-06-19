@@ -72,7 +72,7 @@ const THEMES = {
     bg:'#000000',paddleLeft:'#ffffff',paddleRight:'#ffffff',ball:'#ffffff',
     centerLine:'#333333',text:'#ffffff',
     paddleStyle:'solid',lineStyle:'dashed',glowDefault:0,
-    uiBg:'#111111',uiTextDim:'#555555',uiMenuBg:'rgba(0,0,0,0.92)',
+    uiBg:'#111111',uiTextDim:'#555555',uiMenuBg:'#111111',
     uiBtnBorder:'#555555',uiBtnHoverBg:'#333333',uiBtnActiveBg:'#555555',
     uiToggleOn:'#00aa00',uiToggleOff:'#660000',
   },
@@ -1035,7 +1035,9 @@ class PongGame {
       ctx.beginPath();ctx.moveTo(CONFIG.canvasWidth-3,0);ctx.lineTo(CONFIG.canvasWidth-3,CONFIG.canvasHeight);ctx.stroke();
     }
     this._drawOverlay(ctx,w,h,theme);
-    this.scoreLeftEl.textContent=this.paddleLeft.score;this.scoreRightEl.textContent=this.paddleRight.score;
+    if(!this.scoreLeftEl.parentElement.classList.contains('hidden')){
+      this.scoreLeftEl.textContent=this.paddleLeft.score;this.scoreRightEl.textContent=this.paddleRight.score;
+    }
   }
   _drawOverlay(ctx,w,h,theme){
     ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';

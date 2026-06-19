@@ -656,10 +656,12 @@ class Ball {
     const ang=Math.random()*.8-.4;this.dx=Math.cos(ang)*this.speed*dir;this.dy=Math.sin(ang)*this.speed;
   }
   update(){this.prevX=this.x;this.prevY=this.y;this.x+=this.dx;this.y+=this.dy;}
-  draw(ctx,t){BallRenderer.draw(ctx,this.x,this.y,this.size,this.color,this.skin,t);}
+  draw(ctx,t){ctx.save();ctx.translate(this.x,this.y);ctx.rotate(t*.003);ctx.translate(-this.x,-this.y);
+    BallRenderer.draw(ctx,this.x,this.y,this.size,this.color,this.skin,t);ctx.restore();}
   drawInterpolated(ctx,t,alpha){
     const ix=this.prevX+(this.x-this.prevX)*alpha,iy=this.prevY+(this.y-this.prevY)*alpha;
-    BallRenderer.draw(ctx,ix,iy,this.size,this.color,this.skin,t);
+    ctx.save();ctx.translate(ix,iy);ctx.rotate(t*.003);ctx.translate(-ix,-iy);
+    BallRenderer.draw(ctx,ix,iy,this.size,this.color,this.skin,t);ctx.restore();
   }
 }
 

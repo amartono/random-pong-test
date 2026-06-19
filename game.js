@@ -650,17 +650,19 @@ class Paddle {
 class Ball {
   constructor(x,y,s,color){
     this.x=x;this.y=y;this.prevX=x;this.prevY=y;this.size=s;this.color=color;this.skin='circle';this.dx=0;this.dy=0;this.speed=CONFIG.ballSpeedInitial;
+    this.angle=0;this.spin=0;
   }
   reset(cw,ch,dir){
     this.x=cw/2;this.y=ch/2;this.prevX=this.x;this.prevY=this.y;this.speed=CONFIG.ballSpeedInitial;
     const ang=Math.random()*.8-.4;this.dx=Math.cos(ang)*this.speed*dir;this.dy=Math.sin(ang)*this.speed;
+    this.angle=0;this.spin=0;
   }
-  update(){this.prevX=this.x;this.prevY=this.y;this.x+=this.dx;this.y+=this.dy;}
-  draw(ctx,t){ctx.save();ctx.translate(this.x,this.y);ctx.rotate(t*.003);ctx.translate(-this.x,-this.y);
+  update(){this.prevX=this.x;this.prevY=this.y;this.x+=this.dx;this.y+=this.dy;this.angle+=this.spin;this.spin*=.998;}
+  draw(ctx,t){ctx.save();ctx.translate(this.x,this.y);ctx.rotate(this.angle);ctx.translate(-this.x,-this.y);
     BallRenderer.draw(ctx,this.x,this.y,this.size,this.color,this.skin,t);ctx.restore();}
   drawInterpolated(ctx,t,alpha){
     const ix=this.prevX+(this.x-this.prevX)*alpha,iy=this.prevY+(this.y-this.prevY)*alpha;
-    ctx.save();ctx.translate(ix,iy);ctx.rotate(t*.003);ctx.translate(-ix,-iy);
+    ctx.save();ctx.translate(ix,iy);ctx.rotate(this.angle);ctx.translate(-ix,-iy);
     BallRenderer.draw(ctx,ix,iy,this.size,this.color,this.skin,t);ctx.restore();
   }
 }
@@ -854,6 +856,8 @@ class PongGame {
     this.ball.speed=Math.min(this.ball.speed+CONFIG.ballSpeedIncrement,CONFIG.ballSpeedMax);
     this.ball.dx=Math.cos(ang)*this.ball.speed*dir;this.ball.dy=Math.sin(ang)*this.ball.speed;
     this.ball.x=paddle.x+(dir>0?paddle.width+this.ball.size/2:-this.ball.size/2);
+    // spin from paddle hit: magnitude based on off-center hit + ball speed
+    this.ball.spin=(cl-.5)*this.ball.speed*.12;
     if(settings.soundEnabled)this.sound.play('paddle');
   }
   _updateGoal(){if(++this.serveTimer>90)this.transition('serving');}

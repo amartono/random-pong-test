@@ -991,6 +991,7 @@ class PongGame {
 
   /* ---- drawing ---- */
   _draw(ts){
+    if(!this.active)return;
     const ctx=this.ctx,w=CONFIG.canvasWidth,h=CONFIG.canvasHeight,theme=this.getTheme();
     const alpha=(this.state==='playing'&&!this.paused)?Math.min(this.accumulator/this.tickRate,1):1;
     ctx.fillStyle=settings.themeOverrideBg||theme.bg;ctx.fillRect(0,0,w,h);

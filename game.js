@@ -1087,8 +1087,8 @@ class MenuController {
     this.themeSwitcher.classList.remove('hidden');this.controlsBar.classList.remove('hidden');
     this._updateControlsBar();this._highlightThemeDots();this.game.sound.init();this.game.start();
   }
-  pauseGame(){this.game.paused=true;this.pauseOverlay.classList.remove('hidden');this.themeSwitcher.classList.add('hidden');}
-  resumeGame(){this.game.paused=false;this.pauseOverlay.classList.add('hidden');this.themeSwitcher.classList.remove('hidden');}
+  pauseGame(){this.game.paused=true;this.pauseOverlay.classList.remove('hidden');}
+  resumeGame(){this.game.paused=false;this.pauseOverlay.classList.add('hidden');}
   backToMenu(){this.game.paused=false;this.showMainMenu();}
 
   _buildThemePresets(){
@@ -1156,7 +1156,7 @@ class MenuController {
       case'reset-theme-accent':settings.themeOverrideAccent=null;document.getElementById('themeAccent').value=THEMES[settings.theme].text;applyThemeCSS(settings.theme);this._syncThemePage();break;
       case'reset-theme-glow':settings.themeOverrideGlow=null;document.getElementById('glowSlider').value=THEMES[settings.theme].glowDefault;document.getElementById('glowVal').textContent=THEMES[settings.theme].glowDefault;applyThemeCSS(settings.theme);this._syncThemePage();break;
       case'resume':this.resumeGame();break;
-      case'restart':this.pauseOverlay.classList.add('hidden');this.themeSwitcher.classList.remove('hidden');this.game.restart();break;
+      case'restart':this.pauseOverlay.classList.add('hidden');this.game.restart();break;
       case'quit':this.backToMenu();break;
     }
   }

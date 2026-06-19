@@ -790,7 +790,19 @@ class PongGame {
   start(){
     this._applySettings();this.active=true;this.paused=false;
     this.ai=settings.gameMode==='ai'?new AIOpponent(settings.difficulty):null;
-    this._syncDimensions();this._resetGame();this.transition('serving');
+    this._syncDimensions();this._resetGame();
+    // frenzy mode: spawn many balls with random skins
+    if(settings.gameVariant==='frenzy'){
+      const skins=BALL_SKINS.map(s=>s.key);
+      for(let i=0;i<9;i++){
+        const b=new Ball(CONFIG.canvasWidth/2,CONFIG.canvasHeight/2,this.ball.size,this.ball.color);
+        b.skin=skins[Math.floor(Math.random()*skins.length)];
+        const ang=Math.random()*Math.PI*2;b.dx=Math.cos(ang)*b.speed*(Math.random()<.5?1:-1);b.dy=Math.sin(ang)*b.speed;
+        this.multiBalls.push(b);
+      }
+      this.ball.skin=skins[Math.floor(Math.random()*skins.length)];
+    }
+    this.transition('serving');
   }
   restart(){this.paused=false;this._resetGame();this.transition('serving');}
   _applySettings(){this._applyThemeAndColors();this.ball.skin=settings.ballSkin;applyThemeCSS(settings.theme);}
@@ -848,7 +860,7 @@ class PongGame {
     requestAnimationFrame(this._loop);if(this.lastTime===0){this.lastTime=ts;return;}
     const dt=ts-this.lastTime;this.lastTime=ts;this.accumulator+=dt;
     while(this.accumulator>=this.tickRate){if(!this.paused)this._update();this.accumulator-=this.tickRate;}
-    if(this.state==='playing'&&settings.gameVariant==='powerups')this._updatePowerUps();
+    if(this.state==='playing'&&(settings.gameVariant==='powerups'||settings.gameVariant==='frenzy'))this._updatePowerUps();
     this._updateEffects();
     this._draw(ts);
   }
@@ -1133,8 +1145,8 @@ class MenuController {
     switch(a){
       case'play':this.startGame();break;
       case'toggle-gamemode':
-        settings.gameVariant=settings.gameVariant==='classic'?'powerups':'classic';
-        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':'POWER UPS';break;
+        settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'frenzy':'classic';
+        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':'POWER UPS';break;
       case'cycle-mode':{
         if(settings.gameMode==='pvp'){settings.gameMode='ai';settings.difficulty='easy';}
         else if(settings.difficulty==='easy')settings.difficulty='medium';
@@ -1219,7 +1231,7 @@ class MenuController {
   _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
-    document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':'POWER UPS';
+    document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':'POWER UPS';
     const sl=document.getElementById('soundLabel'),sb=sl.parentElement;sl.textContent=settings.soundEnabled?'ON':'OFF';sb.classList.toggle('on',settings.soundEnabled);sb.classList.toggle('off',!settings.soundEnabled);
     const el=document.getElementById('effectsLabel'),eb=el.parentElement;el.textContent=settings.effectsEnabled?'ON':'OFF';eb.classList.toggle('on',settings.effectsEnabled);eb.classList.toggle('off',!settings.effectsEnabled);
   }

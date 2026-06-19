@@ -953,7 +953,7 @@ class PongGame {
   }
   _spawnPowerUp(){
     const t=POWERUP_TYPES[Math.floor(Math.random()*POWERUP_TYPES.length)];
-    const m=100;
+    const m=t.id==='x3'?250:100; // x3 spawns more centrally for reaction time
     this.powerUp={x:m+Math.random()*(CONFIG.canvasWidth-m*2),y:m+Math.random()*(CONFIG.canvasHeight-m*2),type:t};
   }
   _applyPowerUp(type){

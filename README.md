@@ -5,12 +5,12 @@ A fully interactive, retro-styled Pong game built with vanilla HTML5 Canvas, CSS
 ## How to Play
 
 ```
-git clone https://github.com/YOUR_USER/pong.git
-cd pong
+git clone https://github.com/amartono/random-pong-test.git
+cd random-pong-test
 open index.html
 ```
 
-Or just download the three files and double-click `index.html`.
+Or download the files and double-click `index.html`.
 
 ## Controls
 
@@ -18,7 +18,7 @@ Or just download the three files and double-click `index.html`.
 |--------|----------|----------|
 | Move up | `W` | `↑` |
 | Move down | `S` | `↓` |
-| Pause | `Escape` | |
+| Pause / Back | `Escape` | |
 | Start / Restart | `Space` | |
 
 First to 11, win by 2.
@@ -26,10 +26,24 @@ First to 11, win by 2.
 ## Menu
 
 - **PLAY** — start the game
-- **MODE** — choose PvP or vs AI (Easy / Medium / Hard)
-- **SKINS** — customize Theme, Paddles, and Ball
-- **SOUND** — toggle sound effects
-- **EFFECTS** — toggle particle bursts
+- **GAME MODE** — toggle between Classic and Power Ups mode
+- **PLAYER vs PLAYER / AI** — toggle cycles: PvP → AI Easy → AI Medium → AI Hard → PvP
+- **SKINS** — Theme, Paddles, and Ball customization pages
+- **SOUND** — toggle sound effects (procedural Web Audio, no files needed)
+- **EFFECTS** — toggle particle bursts on goals
+
+## Power Ups Mode
+
+Toggle GAME MODE to **POWER UPS**. Glowing orbs spawn randomly in the arena. The player who last touched the ball claims the power-up.
+
+| Power-up | Label | Effect |
+|---|---|---|
+| Big Paddle | `BIG` | Paddle grows 1.5× taller for 16 seconds |
+| Shield | `S` | Blocks the next goal against you. Stacks — barrier line brightens with multiple shields. Shatter particles on break |
+| Speed Up | `>>` | Ball speed boosted 1.4× for 5 seconds |
+| Slow Opponent | `<<` | Opponent paddle moves at 40% speed for 8 seconds |
+| Double Points | `DP` | Next goal by you awards 2 points |
+| Triple Ball | `x3` | Splits ball into 3 with offset angles. Balls bounce off each other with elastic collisions |
 
 ## Customization
 
@@ -39,10 +53,17 @@ Classic, Neon, Matrix, Sunset, Ocean, Midnight, Forest, Candy, Monochrome — ea
 ### Paddles
 6 styles (Solid, Gradient, Scanline, Bevel, Neon, Rounded) per player. Independent colors, adjustable width (6–30px) and height (30–180px).
 
-### Ball
-12 skins: Square, Circle, Ring, Basketball, Soccer, Tennis, Planet, Moon, Star, Diamond, Glow, Pulse. Custom color and size (6–32px).
+### Ball (14 skins)
+Circle, Ring, Basketball, Soccer, Tennis, 8-Ball, Beachball, Earth, Mars, Jupiter, Saturn, Moon, Wood, Metal. Custom color and size (6–32px). Live preview on the Ball page. Ball rotates with physics-based spin from paddle hits.
 
 All customization applies instantly — no restart needed.
+
+## AI Opponent
+
+Three difficulty levels with distinct behavior:
+- **Easy** — slow, large random tracking offset
+- **Medium** — moderate speed, tighter accuracy
+- **Hard** — near-full speed, predicts ball trajectory with wall bounce simulation
 
 ## Files
 
@@ -50,7 +71,7 @@ All customization applies instantly — no restart needed.
 pong/
 ├── index.html    # Entry point (open this)
 ├── styles.css    # All styling
-└── game.js       # Game logic, AI, renderers, menu
+└── game.js       # Game logic, AI, renderers, menu, power-ups
 ```
 
 ## Browser Support

@@ -881,7 +881,7 @@ class PongGame {
     for(let i=0;i<this.multiBalls.length;i++)
       for(let j=i+1;j<this.multiBalls.length;j++)this._ballCollision(this.multiBalls[i],this.multiBalls[j]);
     // check main ball
-    if(this._checkBall(this.ball)&&this.multiBalls.length>0){const b=this.multiBalls.pop();this.ball.x=b.x;this.ball.y=b.y;this.ball.prevX=b.x;this.ball.prevY=b.y;this.ball.dx=b.dx;this.ball.dy=b.dy;this.ball.speed=b.speed;this.ball.spin=b.spin;this.ball.angle=b.angle;}
+    if(this._checkBall(this.ball)&&this.multiBalls.length>0){const b=this.multiBalls.pop();this.ball.x=b.x;this.ball.y=b.y;this.ball.prevX=b.x;this.ball.prevY=b.y;this.ball.dx=b.dx;this.ball.dy=b.dy;this.ball.speed=b.speed;this.ball.spin=b.spin;this.ball.angle=b.angle;this.ball.skin=b.skin;}
     // check multi balls
     for(let i=this.multiBalls.length-1;i>=0;i--){if(this._checkBall(this.multiBalls[i]))this.multiBalls.splice(i,1);}
   }

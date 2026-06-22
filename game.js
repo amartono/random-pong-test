@@ -793,12 +793,17 @@ class PongGame {
     this._syncDimensions();this._resetGame();this.transition('serving');
   }
   restart(){this.paused=false;this._resetGame();this.transition('serving');}
-  _applySettings(){this._applyThemeAndColors();this.ball.skin=settings.ballSkin;applyThemeCSS(settings.theme);}
+  _applySettings(){this._applyThemeAndColors();if(settings.gameVariant!=='frenzy')this.ball.skin=settings.ballSkin;applyThemeCSS(settings.theme);}
   _applyThemeAndColors(){
     const t=THEMES[settings.theme];
-    this.paddleLeft.color=settings.customPaddleLeft||t.paddleLeft;
-    this.paddleRight.color=settings.customPaddleRight||t.paddleRight;
-    this.ball.color=settings.customBall||t.ball;
+    if(settings.gameVariant!=='frenzy'){
+      this.paddleLeft.color=settings.customPaddleLeft||t.paddleLeft;
+      this.paddleRight.color=settings.customPaddleRight||t.paddleRight;
+      this.ball.color=settings.customBall||t.ball;
+    }else{
+      this.paddleLeft.color=settings.customPaddleLeft||t.paddleLeft;
+      this.paddleRight.color=settings.customPaddleRight||t.paddleRight;
+    }
   }
   _syncDimensions(){
     this.paddleLeft.setDimensions(settings.paddleWidth,settings.paddleHeight);

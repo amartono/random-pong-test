@@ -66,13 +66,13 @@ body {
   min-width: 48px;
   text-align: center;
   text-shadow: var(--accent-glow);
-  transition: color 0.3s, text-shadow 0.3s;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
 }
 
 .score-divider {
   color: var(--center-line);
   font-size: 28px;
-  transition: color 0.3s;
 }
 
 /* ================================================================== */

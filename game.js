@@ -858,7 +858,7 @@ class PongGame {
     requestAnimationFrame(this._loop);if(this.lastTime===0){this.lastTime=ts;return;}
     const dt=ts-this.lastTime;this.lastTime=ts;this.accumulator+=dt;
     while(this.accumulator>=this.tickRate){if(!this.paused)this._update();this.accumulator-=this.tickRate;}
-    if(this.state==='playing'&&(settings.gameVariant==='powerups'||settings.gameVariant==='frenzy'))this._updatePowerUps();
+    if(this.state==='playing'&&settings.gameVariant==='powerups')this._updatePowerUps();
     this._updateEffects();
     this._draw(ts);
   }
@@ -914,11 +914,11 @@ class PongGame {
     // goals
     if(b.x+bw<0){
       if(this.puEffects.lShield>0){this.puEffects.lShield--;this._shieldBreak('left');b.dx=Math.abs(b.dx);b.x=bw;if(settings.soundEnabled)this.sound.play('paddle');}
-      else{this._score('right');return true;}
+      else{this._score('right',b.x,b.y);return true;}
     }
     if(b.x-bw>CONFIG.canvasWidth){
       if(this.puEffects.rShield>0){this.puEffects.rShield--;this._shieldBreak('right');b.dx=-Math.abs(b.dx);b.x=CONFIG.canvasWidth-bw;if(settings.soundEnabled)this.sound.play('paddle');}
-      else{this._score('left');return true;}
+      else{this._score('left',b.x,b.y);return true;}
     }
     return false;
   }
@@ -931,9 +931,10 @@ class PongGame {
     b.spin=(cl-.5)*b.speed*.12;
     if(settings.soundEnabled)this.sound.play('paddle');
   }
-  _score(side){
+  _score(side,bx,by){
     if(side==='right'){this.paddleRight.score+=this.puEffects.dpRight?2:1;this.puEffects.dpRight=false;}
     else{this.paddleLeft.score+=this.puEffects.dpLeft?2:1;this.puEffects.dpLeft=false;}
+    if(settings.effectsEnabled&&bx!==undefined){for(let i=0;i<20;i++)this.particles.push(new Particle(bx,by,this.ball.color));}
     this.serveDirection=Math.random()<.5?1:-1;
     if(this.multiBalls.length===0)this.transition('goal');
   }

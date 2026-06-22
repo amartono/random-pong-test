@@ -793,14 +793,15 @@ class PongGame {
     this._syncDimensions();this._resetGame();
     // frenzy mode: spawn many balls with random skins
     if(settings.gameVariant==='frenzy'){
-      const skins=BALL_SKINS.map(s=>s.key);
-      for(let i=0;i<9;i++){
+      const skins=[...BALL_SKINS]; // shuffle copy
+      for(let i=skins.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[skins[i],skins[j]]=[skins[j],skins[i]];}
+      this.ball.skin=skins[0].key;
+      for(let i=1;i<14;i++){
         const b=new Ball(CONFIG.canvasWidth/2,CONFIG.canvasHeight/2,this.ball.size,this.ball.color);
-        b.skin=skins[Math.floor(Math.random()*skins.length)];
+        b.skin=skins[i].key;
         const ang=Math.random()*Math.PI*2;b.dx=Math.cos(ang)*b.speed*(Math.random()<.5?1:-1);b.dy=Math.sin(ang)*b.speed;
         this.multiBalls.push(b);
       }
-      this.ball.skin=skins[Math.floor(Math.random()*skins.length)];
     }
     this.transition('serving');
   }

@@ -790,20 +790,7 @@ class PongGame {
   start(){
     this._applySettings();this.active=true;this.paused=false;
     this.ai=settings.gameMode==='ai'?new AIOpponent(settings.difficulty):null;
-    this._syncDimensions();this._resetGame();
-    // frenzy mode: spawn many balls with random skins
-    if(settings.gameVariant==='frenzy'){
-      const skins=[...BALL_SKINS]; // shuffle copy
-      for(let i=skins.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[skins[i],skins[j]]=[skins[j],skins[i]];}
-      this.ball.skin=skins[0].key;
-      for(let i=1;i<14;i++){
-        const b=new Ball(CONFIG.canvasWidth/2,CONFIG.canvasHeight/2,this.ball.size,this.ball.color);
-        b.skin=skins[i].key;
-        const ang=Math.random()*Math.PI*2;b.dx=Math.cos(ang)*b.speed*(Math.random()<.5?1:-1);b.dy=Math.sin(ang)*b.speed;
-        this.multiBalls.push(b);
-      }
-    }
-    this.transition('serving');
+    this._syncDimensions();this._resetGame();this.transition('serving');
   }
   restart(){this.paused=false;this._resetGame();this.transition('serving');}
   _applySettings(){this._applyThemeAndColors();this.ball.skin=settings.ballSkin;applyThemeCSS(settings.theme);}
@@ -834,11 +821,21 @@ class PongGame {
   _resetGame(){
     this.paddleLeft.score=0;this.paddleRight.score=0;
     this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);
-    this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,1);    this.particles=[];this.serveDirection=Math.random()<.5?1:-1;
+    this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,1);this.particles=[];this.serveDirection=Math.random()<.5?1:-1;
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
     this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
-    this.ballSpeedMod=1;
-    this.multiBalls=[];
+    this.ballSpeedMod=1;this.multiBalls=[];
+  }
+  _spawnFrenzyBalls(){
+    const skins=[...BALL_SKINS];
+    for(let i=skins.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[skins[i],skins[j]]=[skins[j],skins[i]];}
+    this.ball.skin=skins[0].key;
+    for(let i=1;i<14;i++){
+      const b=new Ball(CONFIG.canvasWidth/2,CONFIG.canvasHeight/2,this.ball.size,this.ball.color);
+      b.skin=skins[i].key;const ang=Math.random()*Math.PI*2;
+      b.dx=Math.cos(ang)*b.speed*(Math.random()<.5?1:-1);b.dy=Math.sin(ang)*b.speed;
+      this.multiBalls.push(b);
+    }
   }
 
   transition(newState){
@@ -848,7 +845,7 @@ class PongGame {
       if(settings.effectsEnabled){for(let i=0;i<24;i++)this.particles.push(new Particle(this.ball.x,this.ball.y,this.ball.color));}
       const wr=this._checkWin();if(wr){this.winMessage='PLAYER '+wr+' WINS!';this.state='over';if(settings.soundEnabled)this.sound.play('win');}
     }
-    if(newState==='serving'){this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,this.serveDirection);}
+    if(newState==='serving'){this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,this.serveDirection);this.multiBalls=[];if(settings.gameVariant==='frenzy')this._spawnFrenzyBalls();}
     if(newState==='playing'&&prev!=='playing'){if(settings.soundEnabled)this.sound.play('start');}
   }
   _checkWin(){

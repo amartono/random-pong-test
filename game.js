@@ -828,10 +828,11 @@ class PongGame {
   }
   _spawnFrenzyBalls(){
     const skins=[...BALL_SKINS];
+    const sc={circle:'#f0f0f0',ring:'#f0f0f0',basketball:'#e87400',soccer:'#1a1a1a',tennis:'#dcd214','8ball':'#222',beachball:'#ee3333',earth:'#009933',mars:'#cc4422',jupiter:'#d4b896',saturn:'#e8d5a0',moon:'#c0c0c0',wood:'#8B6914',metal:'#b0b0b0'};
     for(let i=skins.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[skins[i],skins[j]]=[skins[j],skins[i]];}
-    this.ball.skin=skins[0].key;
+    this.ball.skin=skins[0].key;this.ball.color=sc[skins[0].key];
     for(let i=1;i<14;i++){
-      const b=new Ball(CONFIG.canvasWidth/2,CONFIG.canvasHeight/2,this.ball.size,this.ball.color);
+      const b=new Ball(CONFIG.canvasWidth/2,CONFIG.canvasHeight/2,this.ball.size,sc[skins[i].key]);
       b.skin=skins[i].key;const ang=Math.random()*Math.PI*2;
       b.dx=Math.cos(ang)*b.speed*(Math.random()<.5?1:-1);b.dy=Math.sin(ang)*b.speed;
       this.multiBalls.push(b);
@@ -914,11 +915,11 @@ class PongGame {
     // goals
     if(b.x+bw<0){
       if(this.puEffects.lShield>0){this.puEffects.lShield--;this._shieldBreak('left');b.dx=Math.abs(b.dx);b.x=bw;if(settings.soundEnabled)this.sound.play('paddle');}
-      else{this._score('right',b.x,b.y);return true;}
+      else{this._score('right',b.x,b.y,b.color);return true;}
     }
     if(b.x-bw>CONFIG.canvasWidth){
       if(this.puEffects.rShield>0){this.puEffects.rShield--;this._shieldBreak('right');b.dx=-Math.abs(b.dx);b.x=CONFIG.canvasWidth-bw;if(settings.soundEnabled)this.sound.play('paddle');}
-      else{this._score('left',b.x,b.y);return true;}
+      else{this._score('left',b.x,b.y,b.color);return true;}
     }
     return false;
   }
@@ -931,10 +932,10 @@ class PongGame {
     b.spin=(cl-.5)*b.speed*.12;
     if(settings.soundEnabled)this.sound.play('paddle');
   }
-  _score(side,bx,by){
+  _score(side,bx,by,color){
     if(side==='right'){this.paddleRight.score+=this.puEffects.dpRight?2:1;this.puEffects.dpRight=false;}
     else{this.paddleLeft.score+=this.puEffects.dpLeft?2:1;this.puEffects.dpLeft=false;}
-    if(settings.effectsEnabled&&bx!==undefined){for(let i=0;i<20;i++)this.particles.push(new Particle(bx,by,this.ball.color));}
+    if(settings.effectsEnabled&&bx!==undefined){for(let i=0;i<20;i++)this.particles.push(new Particle(bx,by,color||this.ball.color));}
     this.serveDirection=Math.random()<.5?1:-1;
     if(this.multiBalls.length===0)this.transition('goal');
   }

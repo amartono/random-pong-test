@@ -682,22 +682,43 @@ class Ball {
 /* ------------------------------------------------------------------ */
 
 class AIOpponent {
-  constructor(diff){this.difficulty=diff;}
-  update(paddle,ball,ch){
-    const tY=this._getTargetY(paddle,ball,ch),sp=this._getSpeed();
-    const center=paddle.y+paddle.height/2,diff=tY-center;
-    if(Math.abs(diff)<sp){paddle.vy=0;paddle.y=tY-paddle.height/2;}
-    else if(diff>0)paddle.vy=sp;else paddle.vy=-sp;
+  constructor(diff){this.difficulty=diff;this.reactTimer=0;this.targetY=CONFIG.canvasHeight/2;}
+  update(paddle,balls,ch){
+    this.reactTimer--;
+    if(this.reactTimer<=0){this.targetY=this._pickTarget(paddle,balls,ch);this.reactTimer=this._reactionDelay();}
+    const sp=this._speed(),c=paddle.y+paddle.height/2,d=this.targetY-c;
+    if(Math.abs(d)<sp){paddle.vy=0;paddle.y=this.targetY-paddle.height/2;}
+    else if(d>0)paddle.vy=sp;else paddle.vy=-sp;
   }
-  _getTargetY(paddle,ball,ch){
-    switch(this.difficulty){case'easy':return this._easy(ball,ch);case'medium':return this._med(ball,ch);case'hard':return this._hard(paddle,ball,ch);default:return ball.y;}
+  _reactionDelay(){switch(this.difficulty){case'easy':return 12+Math.floor(Math.random()*18);case'medium':return 3+Math.floor(Math.random()*8);case'hard':return 1;}}
+  _speed(){switch(this.difficulty){case'easy':return CONFIG.paddleSpeed*.70;case'medium':return CONFIG.paddleSpeed*.90;case'hard':return CONFIG.paddleSpeed;}}
+  _pickTarget(paddle,balls,ch){
+    if(balls.length>1)return this._frenzyTarget(paddle,balls,ch);
+    return this._track(paddle,balls[0],ch);
   }
-  _getSpeed(){switch(this.difficulty){case'easy':return CONFIG.paddleSpeed*.45;case'medium':return CONFIG.paddleSpeed*.72;case'hard':return CONFIG.paddleSpeed*.95;default:return CONFIG.paddleSpeed*.6;}}
-  _easy(ball,ch){if(ball.dx<=0)return ch/2;return ball.y+(Math.random()-.5)*140;}
-  _med(ball,ch){if(ball.dx<=0)return ch/2;return ball.y+(Math.random()-.5)*50;}
-  _hard(paddle,ball,ch){
-    if(ball.dx<=0)return ch/2;
-    let bx=ball.x,by=ball.y,bdx=ball.dx,bdy=ball.dy,hb=ball.size/2,tx=paddle.x;
+  _frenzyTarget(paddle,balls,ch){
+    let best=null,bestS=-Infinity;
+    for(const b of balls){
+      if(b.dx<=0)continue;
+      const dist=CONFIG.canvasWidth-b.x,vert=Math.abs(b.y-(paddle.y+paddle.height/2));
+      let s=-(dist*2+vert);
+      if(this.difficulty==='easy')s+=Math.random()*80-40;
+      if(this.difficulty==='medium')s+=Math.random()*30-15;
+      if(s>bestS){bestS=s;best=b;}
+    }
+    return best?this._track(paddle,best,ch):ch/2;
+  }
+  _track(paddle,b,ch){
+    if(b.dx<=0)return ch/2;
+    switch(this.difficulty){
+      case'easy':return b.y+(Math.random()-.5)*100;
+      case'medium':return b.y+(Math.random()-.5)*40;
+      case'hard':return this._predict(b,ch);
+    }
+  }
+  _predict(b,ch){
+    let bx=b.x,by=b.y,bdx=b.dx,bdy=b.dy,hb=b.size/2;
+    const tx=CONFIG.canvasWidth-CONFIG.paddleMargin-CONFIG.paddleWidth;
     while(bx<tx){bx+=bdx;by+=bdy;if(by-hb<=0){by=hb;bdy=Math.abs(bdy);}else if(by+hb>=ch){by=ch-hb;bdy=-Math.abs(bdy);}}
     return by;
   }
@@ -878,7 +899,7 @@ class PongGame {
   _updatePlaying(){
     this._handleInput();
     this.paddleLeft.update(CONFIG.canvasHeight);
-    if(this.ai){this.ai.update(this.paddleRight,this.ball,CONFIG.canvasHeight);if(this.puEffects.rSlow>0)this.paddleRight.vy*=.4;}
+    if(this.ai){this.ai.update(this.paddleRight,[this.ball,...this.multiBalls],CONFIG.canvasHeight);if(this.puEffects.rSlow>0)this.paddleRight.vy*=.4;}
     this.paddleRight.update(CONFIG.canvasHeight);
     this.ball.update();
     for(const b of this.multiBalls)b.update();

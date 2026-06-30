@@ -166,6 +166,7 @@ const BALL_SKINS = [
   { key:'moon',       label:'MOON' },
   { key:'wood',       label:'WOOD' },
   { key:'metal',      label:'METAL' },
+  { key:'custom',     label:'CUSTOM' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -204,6 +205,8 @@ const BallRenderer = {
         this._wood(ctx,x,y,h,c);break;
       case'metal':
         this._metal(ctx,x,y,h,c);break;
+      case'custom':
+        this._customBall(ctx,x,y,h);break;
       default:
         ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();
     }
@@ -546,6 +549,34 @@ const BallRenderer = {
     const ang=[.12,-.18,.06,-.09,.22,-.14,.03,.30,.08,-.05,.16,-.11,.20,-.07,.04,-.22,.10,.14];
     ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,ang[idx%ang.length],0,Math.PI*2);ctx.fill();
   },
+  _customBall(ctx,x,y,r){
+    const shape=settings.customShape,pat=settings.customPattern,c1=settings.customColor1,c2=settings.customColor2;
+    // draw base shape
+    switch(shape){
+      case'circle':ctx.fillStyle=c1;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();break;
+      case'ring':ctx.strokeStyle=c1;ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,r-2,0,Math.PI*2);ctx.stroke();break;
+      case'star':ctx.fillStyle=c1;this._star(ctx,x,y,r,c1);break;
+      case'diamond':ctx.fillStyle=c1;ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x+r,y);ctx.lineTo(x,y+r);ctx.lineTo(x-r,y);ctx.closePath();ctx.fill();break;
+    }
+    // apply pattern overlay
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    switch(pat){
+      case'stripes':
+        ctx.fillStyle=c2;const sw=r*.3;
+        for(let sy=y-r;sy<y+r;sy+=sw*2)ctx.fillRect(x-r,sy,r*2,sw);
+        break;
+      case'dots':
+        ctx.fillStyle=c2;
+        for(let dy=-r;dy<r;dy+=r*.35)for(let dx=-r;dx<r;dx+=r*.35){const cx2=x+dx+(dy%2===0?0:r*.17),cy2=y+dy;if((cx2-x)*(cx2-x)+(cy2-y)*(cy2-y)<r*r)ctx.beginPath();ctx.arc(cx2,cy2,r*.12,0,Math.PI*2);ctx.fill();}
+        break;
+      case'checker':
+        ctx.fillStyle=c2;const cs=r*.4;
+        for(let cy2=y-r;cy2<y+r;cy2+=cs)for(let cx2=x-r;cx2<x+r;cx2+=cs){const row=Math.floor((cy2-y+r)/cs),col=Math.floor((cx2-x+r)/cs);if((row+col)%2===0)ctx.fillRect(cx2,cy2,cs,cs);}
+        break;
+    }
+    ctx.restore();
+    ctx.strokeStyle='#333';ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -756,6 +787,10 @@ const settings = {
   ballSkin:'circle',
   customBall:null,
   ballSize:16,
+  customShape:'circle',
+  customColor1:'#ffffff',
+  customColor2:'#ff4444',
+  customPattern:'solid',
 };
 
 /* ------------------------------------------------------------------ */
@@ -1111,7 +1146,7 @@ class MenuController {
     this.pauseOverlay=document.getElementById('pauseOverlay');
     this.scoreboard=document.getElementById('scoreboard');this.canvas=document.getElementById('gameCanvas');
     this.controlsBar=document.getElementById('controlsBar');this.themeSwitcher=document.getElementById('themeSwitcher');
-    this._buildThemePresets();this._buildPaddleStyleButtons();this._buildBallSkinButtons();this._buildThemeDots();
+    this._buildThemePresets();this._buildPaddleStyleButtons();this._buildBallSkinButtons();this._buildCustomBallOptions();this._buildThemeDots();
     this._bindClicks();this._bindSliders();this._bindColorPickers();this._syncUI();
   }
 
@@ -1154,6 +1189,14 @@ class MenuController {
       const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;
       b.addEventListener('click',()=>this._onBallSkinClick(key));g.appendChild(b);
     }
+  }
+  _buildCustomBallOptions(){
+    const shapes=['circle','ring','star','diamond'];
+    const sg=document.getElementById('customShapes');sg.innerHTML='';
+    for(const s of shapes){const b=document.createElement('button');b.className='style-btn';b.dataset.shape=s;b.textContent=s.toUpperCase();b.addEventListener('click',()=>{settings.customShape=s;this._syncBallPage();});sg.appendChild(b);}
+    const patterns=['solid','stripes','dots','checker'];
+    const pg=document.getElementById('customPatterns');pg.innerHTML='';
+    for(const p of patterns){const b=document.createElement('button');b.className='style-btn';b.dataset.pattern=p;b.textContent=p.toUpperCase();b.addEventListener('click',()=>{settings.customPattern=p;this._syncBallPage();});pg.appendChild(b);}
   }
   _buildThemeDots(){
     const c=document.getElementById('tsDots');c.innerHTML='';
@@ -1219,6 +1262,10 @@ class MenuController {
     document.getElementById('paddleLeftColor').addEventListener('input',e=>{settings.customPaddleLeft=e.target.value;this.game._applyThemeAndColors();});
     document.getElementById('paddleRightColor').addEventListener('input',e=>{settings.customPaddleRight=e.target.value;this.game._applyThemeAndColors();});
     document.getElementById('ballColor').addEventListener('input',e=>{settings.customBall=e.target.value;this.game._applyThemeAndColors();this._renderBallPreview();});
+    try{
+      document.getElementById('customColor1').addEventListener('input',e=>{settings.customColor1=e.target.value;this._renderBallPreview();});
+      document.getElementById('customColor2').addEventListener('input',e=>{settings.customColor2=e.target.value;this._renderBallPreview();});
+    }catch(e){}
   }
 
   _syncThemePage(){
@@ -1243,6 +1290,14 @@ class MenuController {
     document.querySelectorAll('#ballSkinGrid .ball-skin-btn').forEach(b=>b.classList.toggle('active',b.dataset.skin===settings.ballSkin));
     document.getElementById('ballColor').value=settings.customBall||t.ball;
     document.getElementById('ballSizeSlider').value=settings.ballSize;document.getElementById('ballSizeVal').textContent=settings.ballSize;
+    const isCust=settings.ballSkin==='custom';
+    document.getElementById('customBallOpts').classList.toggle('hidden',!isCust);
+    if(isCust){
+      document.getElementById('customColor1').value=settings.customColor1;
+      document.getElementById('customColor2').value=settings.customColor2;
+      document.querySelectorAll('#customShapes .style-btn').forEach(b=>b.classList.toggle('active',b.dataset.shape===settings.customShape));
+      document.querySelectorAll('#customPatterns .style-btn').forEach(b=>b.classList.toggle('active',b.dataset.pattern===settings.customPattern));
+    }
     this._renderBallPreview();
   }
   _renderBallPreview(){

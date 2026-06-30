@@ -1185,6 +1185,9 @@ class MenuController {
       case'paddle-page':this._showSub(this.menuPaddle);this._syncPaddlePage();break;
       case'ball-page':this._showSub(this.menuBall);this._syncBallPage();break;
       case'admin':this._showSub(this.menuAdmin);if(!window._admin)window._admin=new AdminController();break;
+      case'admin-save':if(window._admin)window._admin.save();break;
+      case'admin-delete':if(window._admin)window._admin.del();break;
+      case'admin-clear':if(window._admin)window._admin.clear();break;
       case'back':this._showSub(this.menuMain);this._syncUI();break;
       case'sound':settings.soundEnabled=!settings.soundEnabled;this._syncUI();break;
       case'effects':settings.effectsEnabled=!settings.effectsEnabled;this._syncUI();break;
@@ -1336,26 +1339,26 @@ class AdminController {
     else{this.pixels=Array(400).fill('transparent');try{const ec=document.getElementById('editorCanvas'),ctx=ec.getContext('2d');ctx.clearRect(0,0,240,240);BallRenderer.draw(ctx,120,120,200,'#fff',s.key,0);const id=ctx.getImageData(0,0,240,240).data;for(let py=0;py<20;py++)for(let px=0;px<20;px++){const cx=Math.floor((px+.5)*12),cy=Math.floor((py+.5)*12),i=(cy*240+cx)*4;this.pixels[py*20+px]=id[i+3]>20?rgbToHex(id[i],id[i+1],id[i+2]):'transparent';}ctx.clearRect(0,0,240,240);}catch(e){}}
     this._draw();
   }
-  _bindTools(){
-    document.querySelector('[data-action="admin-save"]').addEventListener('click',()=>this._save());
-    document.querySelector('[data-action="admin-delete"]').addEventListener('click',()=>this._del());
-    document.querySelector('[data-action="admin-clear"]').addEventListener('click',()=>{this.pixels=Array(400).fill('transparent');this.editKey=null;document.getElementById('skinNameInput').value='';this._draw();document.querySelectorAll('.admin-skin-item').forEach(d=>d.classList.remove('active'));});
-  }
-  _save(){
+  _bindTools(){} // handled by main MenuController event system
+  save(){
     const name=document.getElementById('skinNameInput').value.trim()||'CUSTOM';
     if(this.editKey&&this.editKey.startsWith('custom_')){
       const i=CustomSkins.findIndex(s=>s.key===this.editKey);if(i>=0){CustomSkins[i].label=name;CustomSkins[i].pixels=[...this.pixels];}
     }else{const k='custom_'+Date.now();CustomSkins.push({key:k,label:name,pixels:[...this.pixels]});this.editKey=k;}
-    this._buildList();
-    // refresh ball skin buttons in the BALL menu
-    const g=document.getElementById('ballSkinGrid');if(g){g.innerHTML='';for(const{key,label}of allSkins()){const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;b.addEventListener('click',()=>{settings.ballSkin=key;if(window._game)window._game.ball.skin=key;});g.appendChild(b);}}
-    // refresh frenzy balls reference
+    this._buildList();this._refreshBallMenu();
   }
-  _del(){
+  del(){
     if(!this.editKey||!this.editKey.startsWith('custom_'))return;
     const i=CustomSkins.findIndex(s=>s.key===this.editKey);if(i>=0)CustomSkins.splice(i,1);
-    this.pixels=Array(400).fill('transparent');this.editKey=null;document.getElementById('skinNameInput').value='';this._draw();this._buildList();
-    const g=document.getElementById('ballSkinGrid');if(g){g.innerHTML='';for(const{key,label}of allSkins()){const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;b.addEventListener('click',()=>{settings.ballSkin=key;if(window._game)window._game.ball.skin=key;});g.appendChild(b);}}
+    this.editKey=null;this.pixels=Array(400).fill('transparent');document.getElementById('skinNameInput').value='';this._draw();this._buildList();this._refreshBallMenu();
+  }
+  clear(){this.pixels=Array(400).fill('transparent');this.editKey=null;document.getElementById('skinNameInput').value='';this._draw();document.querySelectorAll('.admin-skin-item').forEach(d=>d.classList.remove('active'));}
+  _refreshBallMenu(){
+    const g=document.getElementById('ballSkinGrid');if(!g)return;g.innerHTML='';
+    for(const{key,label}of allSkins()){
+      const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;
+      b.addEventListener('click',()=>{settings.ballSkin=key;if(window._game)window._game.ball.skin=key;});g.appendChild(b);
+    }
   }
 }
 

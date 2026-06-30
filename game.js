@@ -1102,7 +1102,7 @@ class MenuController {
     this.scoreboard=document.getElementById('scoreboard');this.canvas=document.getElementById('gameCanvas');
     this.controlsBar=document.getElementById('controlsBar');this.themeSwitcher=document.getElementById('themeSwitcher');
     this._buildThemePresets();this._buildPaddleStyleButtons();this._buildBallSkinButtons();this._buildThemeDots();
-    this._bindClicks();this._bindSliders();this._bindColorPickers();this._initAdmin();this._syncUI();
+    this._bindClicks();this._bindSliders();this._bindColorPickers();try{this._initAdmin();}catch(e){}this._syncUI();
   }
 
   showMainMenu(){

@@ -687,8 +687,8 @@ class AIOpponent {
     this.reactTimer--;
     if(this.reactTimer<=0){this.targetY=this._pickTarget(paddle,balls,ch);this.reactTimer=this._reactionDelay();}
     const sp=this._speed(),c=paddle.y+paddle.height/2,d=this.targetY-c;
-    if(Math.abs(d)<sp){paddle.vy=0;paddle.y=this.targetY-paddle.height/2;}
-    else if(d>0)paddle.vy=sp;else paddle.vy=-sp;
+    if(Math.abs(d)<3){paddle.vy=0;paddle.y=this.targetY-paddle.height/2;}
+    else{const tv=d>0?sp:-sp;paddle.vy+=(tv-paddle.vy)*.25;}
   }
   _reactionDelay(){switch(this.difficulty){case'easy':return 12+Math.floor(Math.random()*18);case'medium':return 3+Math.floor(Math.random()*8);case'hard':return 1;}}
   _speed(){return CONFIG.paddleSpeed;}

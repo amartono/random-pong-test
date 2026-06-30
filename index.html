@@ -32,6 +32,7 @@
             <span id="modeLabel">PLAYER vs PLAYER</span>
           </button>
           <button class="menu-btn" data-action="skins">CUSTOMIZE</button>
+        <button class="menu-btn admin-btn" data-action="admin">ADMIN</button>
           <button class="menu-btn toggle" data-action="sound">
             SOUND: <span id="soundLabel">ON</span>
           </button>
@@ -88,6 +89,29 @@
           <button class="menu-btn" data-action="restart">RESTART</button>
           <button class="menu-btn" data-action="quit">QUIT TO MENU</button>
         </div>
+      </div>
+
+      <!-- ====== ADMIN PANEL ====== -->
+      <div class="menu-screen hidden" id="menuAdmin">
+        <h2 class="menu-subtitle">BALL EDITOR</h2>
+        <div class="admin-layout">
+          <!-- left: skin list -->
+          <div class="admin-list" id="adminSkinList"></div>
+          <!-- right: editor -->
+          <div class="admin-editor">
+            <input type="text" id="skinNameInput" class="admin-input" placeholder="Skin name" maxlength="12">
+            <div class="editor-canvas-wrap">
+              <canvas id="editorCanvas" width="240" height="240" class="editor-canvas"></canvas>
+            </div>
+            <div class="color-palette" id="colorPalette"></div>
+            <div class="editor-tools">
+              <button class="menu-btn small" data-action="save-skin">SAVE</button>
+              <button class="menu-btn small" data-action="delete-skin">DELETE</button>
+              <button class="menu-btn small" data-action="clear-editor">CLEAR</button>
+            </div>
+          </div>
+        </div>
+        <button class="menu-btn back-btn" data-action="back">BACK</button>
       </div>
     </div>
 

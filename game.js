@@ -167,6 +167,7 @@ const BALL_SKINS = [
   { key:'wood',       label:'WOOD' },
   { key:'metal',      label:'METAL' },
 ];
+const CUSTOM_SKINS=[];
 
 /* ------------------------------------------------------------------ */
 /*  BALL RENDERER                                                      */
@@ -174,6 +175,9 @@ const BALL_SKINS = [
 
 const BallRenderer = {
   draw(ctx,x,y,s,c,skin,t){
+    if(skin&&skin.startsWith('custom_')){
+      const cs=CUSTOM_SKINS.find(k=>k.key===skin);if(cs)this._custom(ctx,x,y,s/2,cs);return;
+    }
     const h=s/2;
     switch(skin){
       case'circle':
@@ -546,6 +550,13 @@ const BallRenderer = {
     const ang=[.12,-.18,.06,-.09,.22,-.14,.03,.30,.08,-.05,.16,-.11,.20,-.07,.04,-.22,.10,.14];
     ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,ang[idx%ang.length],0,Math.PI*2);ctx.fill();
   },
+  _custom(ctx,x,y,r,skin){
+    const P=skin.pixels, N=20, cell=r*2/N;
+    for(let py=0;py<N;py++)for(let px=0;px<N;px++){
+      const c=P[py*N+px];if(!c||c==='transparent')continue;
+      ctx.fillStyle=c;ctx.fillRect(x-r+px*cell,y-r+py*cell,cell+1,cell+1);
+    }
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -832,7 +843,7 @@ class PongGame {
     this.ballSpeedMod=1;this.multiBalls=[];
   }
   _spawnFrenzyBalls(){
-    const skins=[...BALL_SKINS];
+    const skins=[...getAllSkins()];
     const sc={circle:'#f0f0f0',ring:'#f0f0f0',basketball:'#e87400',soccer:'#1a1a1a',tennis:'#dcd214','8ball':'#222',beachball:'#ee3333',earth:'#009933',mars:'#cc4422',jupiter:'#d4b896',saturn:'#e8d5a0',moon:'#c0c0c0',wood:'#8B6914',metal:'#b0b0b0'};
     for(let i=skins.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[skins[i],skins[j]]=[skins[j],skins[i]];}
     this.ball.skin=skins[0].key;this.ball.color=sc[skins[0].key];
@@ -1086,18 +1097,18 @@ class MenuController {
     this.menuOverlay=document.getElementById('menuOverlay');this.menuMain=document.getElementById('menuMain');
     this.menuSkins=document.getElementById('menuSkins');
     this.menuTheme=document.getElementById('menuTheme');this.menuPaddle=document.getElementById('menuPaddle');
-    this.menuBall=document.getElementById('menuBall');
+    this.menuBall=document.getElementById('menuBall');this.menuAdmin=document.getElementById('menuAdmin');
     this.pauseOverlay=document.getElementById('pauseOverlay');
     this.scoreboard=document.getElementById('scoreboard');this.canvas=document.getElementById('gameCanvas');
     this.controlsBar=document.getElementById('controlsBar');this.themeSwitcher=document.getElementById('themeSwitcher');
     this._buildThemePresets();this._buildPaddleStyleButtons();this._buildBallSkinButtons();this._buildThemeDots();
-    this._bindClicks();this._bindSliders();this._bindColorPickers();this._syncUI();
+    this._bindClicks();this._bindSliders();this._bindColorPickers();this._initAdmin();this._syncUI();
   }
 
   showMainMenu(){
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
-    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));
+    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuAdmin].forEach(m=>m.classList.add('hidden'));
     this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
@@ -1129,7 +1140,7 @@ class MenuController {
   }
   _buildBallSkinButtons(){
     const g=document.getElementById('ballSkinGrid');g.innerHTML='';
-    for(const{key,label}of BALL_SKINS){
+    for(const{key,label}of getAllSkins()){
       const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;
       b.addEventListener('click',()=>this._onBallSkinClick(key));g.appendChild(b);
     }
@@ -1163,6 +1174,7 @@ class MenuController {
       case'theme-page':this._showSub(this.menuTheme);this._syncThemePage();break;
       case'paddle-page':this._showSub(this.menuPaddle);this._syncPaddlePage();break;
       case'ball-page':this._showSub(this.menuBall);this._syncBallPage();break;
+      case'admin':this._showSub(this.menuAdmin);this._refreshAdminList();break;
       case'back':this._showSub(this.menuMain);this._syncUI();break;
       case'sound':settings.soundEnabled=!settings.soundEnabled;this._syncUI();break;
       case'effects':settings.effectsEnabled=!settings.effectsEnabled;this._syncUI();break;
@@ -1233,7 +1245,7 @@ class MenuController {
     BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,c,settings.ballSkin,Date.now());
   }
 
-  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
+  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuAdmin].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
     document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':'POWER UPS';
@@ -1243,6 +1255,117 @@ class MenuController {
   _updateControlsBar(){
     const p2=document.getElementById('p2Controls');
     p2.innerHTML=settings.gameMode==='ai'?'<span class="label">AI</span><span class="ai-badge">'+settings.difficulty.toUpperCase()+'</span>':'<span class="label">Player 2</span><span class="key">&#9650;</span><span class="key">&#9660;</span>';
+  }
+
+  /* ---- admin panel ---- */
+  _initAdmin(){
+    this.editorPixels=Array(400).fill('transparent');
+    this.editorColor='#ff0000';
+    this.editorSkinKey=null;
+    this._buildColorPalette();
+    this._setupEditorCanvas();
+    document.querySelectorAll('[data-action="save-skin"],[data-action="delete-skin"],[data-action="clear-editor"]').forEach(b=>{
+      b.addEventListener('click',e=>{const a=e.currentTarget.dataset.action;if(a==='save-skin')this._saveSkin();if(a==='delete-skin')this._deleteSkin();if(a==='clear-editor')this._clearEditor();});
+    });
+  }
+  _refreshAdminList(){
+    const list=document.getElementById('adminSkinList');list.innerHTML='';
+    for(const s of getAllSkins()){
+      const div=document.createElement('div');div.className='admin-skin-item';
+      div.innerHTML=`<canvas class="admin-skin-thumb" width="28" height="28"></canvas><span>${s.label}</span>`;
+      div.addEventListener('click',()=>this._loadSkin(s));
+      const cv=div.querySelector('canvas'),ctx=cv.getContext('2d');
+      if(s.key.startsWith('custom_')){
+        const P=s.pixels,N=20,cell=28/N;
+        for(let py=0;py<N;py++)for(let px=0;px<N;px++){const c=P[py*N+px];if(c&&c!=='transparent'){ctx.fillStyle=c;ctx.fillRect(px*cell,py*cell,cell+1,cell+1);}}
+      }else{BallRenderer.draw(ctx,14,14,22,'#fff',s.key,0);}
+      list.appendChild(div);
+    }
+  }
+  _loadSkin(s){
+    this.editorSkinKey=s.key;
+    document.getElementById('skinNameInput').value=s.label;
+    document.querySelectorAll('.admin-skin-item').forEach(d=>d.classList.toggle('active',d.querySelector('span').textContent===s.label));
+    if(s.key.startsWith('custom_')){
+      this.editorPixels=[...s.pixels];
+    }else{
+      this.editorPixels=Array(400).fill('transparent');
+      // render built-in skin to pixel canvas as reference
+      const ec=document.getElementById('editorCanvas'),ctx=ec.getContext('2d');
+      ctx.clearRect(0,0,240,240);
+      BallRenderer.draw(ctx,120,120,200,'#fff',s.key,0);
+      // sample the canvas into pixels
+      const imgData=ctx.getImageData(0,0,240,240).data;
+      for(let py=0;py<20;py++)for(let px=0;px<20;px++){
+        const cx=Math.floor((px+.5)*12),cy=Math.floor((py+.5)*12);
+        const i=(cy*240+cx)*4,r=imgData[i],g=imgData[i+1],b=imgData[i+2],a=imgData[i+3];
+        this.editorPixels[py*20+px]=a>20?rgbToHex(r,g,b):'transparent';
+      }
+      ctx.clearRect(0,0,240,240);
+    }
+    this._drawEditor();
+  }
+  _saveSkin(){
+    const name=document.getElementById('skinNameInput').value.trim()||'CUSTOM';
+    const key='custom_'+Date.now();
+    if(this.editorSkinKey&&this.editorSkinKey.startsWith('custom_')){
+      const idx=CUSTOM_SKINS.findIndex(s=>s.key===this.editorSkinKey);
+      if(idx>=0){CUSTOM_SKINS[idx].label=name;CUSTOM_SKINS[idx].pixels=[...this.editorPixels];}
+    }else{
+      CUSTOM_SKINS.push({key,label:name,pixels:[...this.editorPixels]});
+      this.editorSkinKey=key;
+    }
+    this._refreshAdminList();
+    this._buildBallSkinButtons();
+    // if in game, update ball skin options
+  }
+  _deleteSkin(){
+    if(!this.editorSkinKey||!this.editorSkinKey.startsWith('custom_'))return;
+    const idx=CUSTOM_SKINS.findIndex(s=>s.key===this.editorSkinKey);
+    if(idx>=0)CUSTOM_SKINS.splice(idx,1);
+    this.editorSkinKey=null;this.editorPixels=Array(400).fill('transparent');
+    document.getElementById('skinNameInput').value='';
+    this._drawEditor();this._refreshAdminList();this._buildBallSkinButtons();
+  }
+  _clearEditor(){this.editorPixels=Array(400).fill('transparent');this.editorSkinKey=null;document.getElementById('skinNameInput').value='';this._drawEditor();document.querySelectorAll('.admin-skin-item').forEach(d=>d.classList.remove('active'));}
+  _buildColorPalette(){
+    const colors=['#ff0000','#ff8800','#ffdd00','#44ff44','#00cc00','#00ffcc','#00aaff','#4444ff','#aa00ff','#ff44ff','#ffffff','#aaaaaa','#666666','#222222','#8B4513','#ffcc88','transparent'];
+    const pal=document.getElementById('colorPalette');pal.innerHTML='';
+    for(const c of colors){
+      const sw=document.createElement('span');sw.className='palette-swatch';
+      sw.style.backgroundColor=c==='transparent'?'#ccc':c;
+      if(c==='transparent')sw.style.backgroundImage='linear-gradient(45deg,#999 25%,transparent 25%,transparent 75%,#999 75%)';
+      sw.addEventListener('click',()=>{this.editorColor=c;document.querySelectorAll('.palette-swatch').forEach(s=>s.classList.remove('active'));sw.classList.add('active');});
+      pal.appendChild(sw);
+    }
+    pal.querySelector('.palette-swatch').classList.add('active');
+  }
+  _setupEditorCanvas(){
+    const cv=document.getElementById('editorCanvas'),ctx=cv.getContext('2d');
+    let painting=false,erasing=false;
+    const getCell=(e)=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;return[Math.floor(x/12),Math.floor(y/12)];};
+    cv.addEventListener('mousedown',e=>{painting=true;erasing=e.button===2;const[px,py]=getCell(e);this._paintCell(px,py,erasing);e.preventDefault();});
+    cv.addEventListener('mousemove',e=>{if(!painting)return;const[px,py]=getCell(e);this._paintCell(px,py,erasing);});
+    cv.addEventListener('mouseup',()=>{painting=false;});
+    cv.addEventListener('mouseleave',()=>{painting=false;});
+    cv.addEventListener('contextmenu',e=>e.preventDefault());
+    this._drawEditor();
+  }
+  _paintCell(px,py,erasing){
+    if(px<0||px>=20||py<0||py>=20)return;
+    this.editorPixels[py*20+px]=erasing?'transparent':this.editorColor;
+    this._drawEditor();
+  }
+  _drawEditor(){
+    const cv=document.getElementById('editorCanvas'),ctx=cv.getContext('2d');
+    ctx.clearRect(0,0,240,240);
+    for(let py=0;py<20;py++)for(let px=0;px<20;px++){
+      const c=this.editorPixels[py*20+px];
+      ctx.fillStyle=c==='transparent'?'#111':c;
+      ctx.fillRect(px*12,py*12,12,12);
+    }
+    ctx.strokeStyle='#333';ctx.lineWidth=.5;
+    for(let i=0;i<=20;i++){ctx.beginPath();ctx.moveTo(i*12,0);ctx.lineTo(i*12,240);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*12);ctx.lineTo(240,i*12);ctx.stroke();}
   }
 }
 
@@ -1259,7 +1382,7 @@ class MenuController {
     if(e.key!=='Escape')return;
     if(!menu.menuOverlay.classList.contains('hidden')||!menu.pauseOverlay.classList.contains('hidden')){
       if(!menu.pauseOverlay.classList.contains('hidden'))menu.resumeGame();
-      else{const subs=[menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}
+      else{const subs=[menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall,menu.menuAdmin];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}
       return;
     }
     if(game.state==='playing'||game.state==='serving'||game.state==='goal'){if(game.paused)menu.resumeGame();else menu.pauseGame();}

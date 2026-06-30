@@ -691,7 +691,7 @@ class AIOpponent {
     else if(d>0)paddle.vy=sp;else paddle.vy=-sp;
   }
   _reactionDelay(){switch(this.difficulty){case'easy':return 12+Math.floor(Math.random()*18);case'medium':return 3+Math.floor(Math.random()*8);case'hard':return 1;}}
-  _speed(){switch(this.difficulty){case'easy':return CONFIG.paddleSpeed*.70;case'medium':return CONFIG.paddleSpeed*.90;case'hard':return CONFIG.paddleSpeed;}}
+  _speed(){return CONFIG.paddleSpeed;}
   _pickTarget(paddle,balls,ch){
     if(balls.length>1)return this._frenzyTarget(paddle,balls,ch);
     return this._track(paddle,balls[0],ch);

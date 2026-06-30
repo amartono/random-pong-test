@@ -1186,6 +1186,7 @@ class MenuController {
       case'ball-page':this._showSub(this.menuBall);this._syncBallPage();break;
       case'admin':this._showSub(this.menuAdmin);if(!window._admin)window._admin=new AdminController();break;
       case'admin-save':if(window._admin)window._admin.save();break;
+      case'admin-apply':if(window._admin)window._admin.apply();break;
       case'admin-delete':if(window._admin)window._admin.del();break;
       case'admin-clear':if(window._admin)window._admin.clear();break;
       case'back':this._showSub(this.menuMain);this._syncUI();break;
@@ -1318,6 +1319,10 @@ class AdminController {
     for(let py=0;py<20;py++)for(let px=0;px<20;px++){const c=this.pixels[py*20+px];ctx.fillStyle=c==='transparent'?'#1a1a1a':c;ctx.fillRect(px*12,py*12,12,12);}
     ctx.strokeStyle='#333';ctx.lineWidth=.5;
     for(let i=0;i<=20;i++){ctx.beginPath();ctx.moveTo(i*12,0);ctx.lineTo(i*12,240);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*12);ctx.lineTo(240,i*12);ctx.stroke();}
+    // live preview in corner — render pixels as ball
+    const N=20,r=32,cx=200,cy=200,cell=r*2/N;
+    for(let py=0;py<N;py++)for(let px=0;px<N;px++){const c=this.pixels[py*N+px];if(c&&c!=='transparent'){ctx.fillStyle=c;ctx.fillRect(cx-r+px*cell,cy-r+py*cell,cell+1,cell+1);}}
+    ctx.strokeStyle='#555';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
   }
   _buildList(){
     const list=document.getElementById('adminSkinList');list.innerHTML='';
@@ -1353,6 +1358,17 @@ class AdminController {
     this.editKey=null;this.pixels=Array(400).fill('transparent');document.getElementById('skinNameInput').value='';this._draw();this._buildList();this._refreshBallMenu();
   }
   clear(){this.pixels=Array(400).fill('transparent');this.editKey=null;document.getElementById('skinNameInput').value='';this._draw();document.querySelectorAll('.admin-skin-item').forEach(d=>d.classList.remove('active'));}
+  apply(){
+    this.save();
+    const skin=this.editKey;if(!skin)return;
+    settings.ballSkin=skin;
+    if(window._game){window._game.ball.skin=skin;window._game.ball.color='#ffffff';}
+    // also update ball preview canvas if visible
+    const pv=document.getElementById('ballPreview');if(pv&&!pv.classList.contains('hidden')){
+      const ctx=pv.getContext('2d'),s=pv.width;ctx.clearRect(0,0,s,s);
+      BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,'#fff',skin,Date.now());
+    }
+  }
   _refreshBallMenu(){
     const g=document.getElementById('ballSkinGrid');if(!g)return;g.innerHTML='';
     for(const{key,label}of allSkins()){

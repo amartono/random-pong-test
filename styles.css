@@ -487,6 +487,29 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 /* ================================================================== */
+/*  ADMIN PANEL                                                        */
+/* ================================================================== */
+
+.admin-link { font-size: 9px !important; min-width: auto !important; padding: 7px 16px !important; opacity: 0.45; border-color: var(--text-dim) !important; }
+.admin-link:hover { opacity: 1; }
+.admin-layout { display: flex; gap: 12px; width: 100%; max-height: 330px; }
+.admin-list { flex: 0 0 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 3px; }
+.admin-skin-item { display: flex; align-items: center; gap: 5px; padding: 3px 5px; border: 2px solid var(--btn-border); cursor: pointer; font-size: 7px; letter-spacing: 1px; color: var(--text); }
+.admin-skin-item:hover { border-color: var(--accent); }
+.admin-skin-item.active { border-color: var(--accent); background: var(--btn-active-bg); }
+.admin-skin-thumb { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--btn-border); flex-shrink: 0; }
+.admin-editor { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.admin-input { font-family: 'Press Start 2P', monospace; font-size: 8px; letter-spacing: 1px; color: var(--text); background: transparent; border: 2px solid var(--btn-border); padding: 4px 8px; text-align: center; width: 170px; outline: none; }
+.admin-input:focus { border-color: var(--accent); }
+.editor-canvas-wrap { border: 2px solid var(--btn-border); line-height: 0; }
+#editorCanvas { display: block; cursor: crosshair; border: none !important; box-shadow: none !important; }
+.color-palette { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; max-width: 200px; }
+.palette-swatch { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: all 0.15s; }
+.palette-swatch:hover { transform: scale(1.3); }
+.palette-swatch.active { border-color: var(--accent); box-shadow: var(--accent-glow); }
+.editor-tools { display: flex; gap: 6px; }
+
+/* ================================================================== */
 /*  PAUSE OVERLAY                                                      */
 /* ================================================================== */
 

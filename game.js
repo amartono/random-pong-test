@@ -853,7 +853,7 @@ class PongGame {
     this.ballSpeedMod=1;this.multiBalls=[];
   }
   _spawnFrenzyBalls(){
-    const skins=[...BALL_SKINS];
+    const skins=[...allSkins()];
     const sc={circle:'#f0f0f0',ring:'#f0f0f0',basketball:'#e87400',soccer:'#1a1a1a',tennis:'#dcd214','8ball':'#222',beachball:'#ee3333',earth:'#009933',mars:'#cc4422',jupiter:'#d4b896',saturn:'#e8d5a0',moon:'#c0c0c0',wood:'#8B6914',metal:'#b0b0b0'};
     for(let i=skins.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[skins[i],skins[j]]=[skins[j],skins[i]];}
     this.ball.skin=skins[0].key;this.ball.color=sc[skins[0].key];
@@ -1107,7 +1107,7 @@ class MenuController {
     this.menuOverlay=document.getElementById('menuOverlay');this.menuMain=document.getElementById('menuMain');
     this.menuSkins=document.getElementById('menuSkins');
     this.menuTheme=document.getElementById('menuTheme');this.menuPaddle=document.getElementById('menuPaddle');
-    this.menuBall=document.getElementById('menuBall');
+    this.menuBall=document.getElementById('menuBall');this.menuAdmin=document.getElementById('menuAdmin');
     this.pauseOverlay=document.getElementById('pauseOverlay');
     this.scoreboard=document.getElementById('scoreboard');this.canvas=document.getElementById('gameCanvas');
     this.controlsBar=document.getElementById('controlsBar');this.themeSwitcher=document.getElementById('themeSwitcher');
@@ -1118,7 +1118,7 @@ class MenuController {
   showMainMenu(){
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
-    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));
+    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuAdmin].forEach(m=>m.classList.add('hidden'));
     this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
@@ -1150,7 +1150,7 @@ class MenuController {
   }
   _buildBallSkinButtons(){
     const g=document.getElementById('ballSkinGrid');g.innerHTML='';
-    for(const{key,label}of BALL_SKINS){
+    for(const{key,label}of allSkins()){
       const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;
       b.addEventListener('click',()=>this._onBallSkinClick(key));g.appendChild(b);
     }
@@ -1184,6 +1184,7 @@ class MenuController {
       case'theme-page':this._showSub(this.menuTheme);this._syncThemePage();break;
       case'paddle-page':this._showSub(this.menuPaddle);this._syncPaddlePage();break;
       case'ball-page':this._showSub(this.menuBall);this._syncBallPage();break;
+      case'admin':this._showSub(this.menuAdmin);if(!window._admin)window._admin=new AdminController();break;
       case'back':this._showSub(this.menuMain);this._syncUI();break;
       case'sound':settings.soundEnabled=!settings.soundEnabled;this._syncUI();break;
       case'effects':settings.effectsEnabled=!settings.effectsEnabled;this._syncUI();break;
@@ -1254,7 +1255,7 @@ class MenuController {
     BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,c,settings.ballSkin,Date.now());
   }
 
-  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
+  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuAdmin].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
     document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':'POWER UPS';
@@ -1268,19 +1269,122 @@ class MenuController {
 }
 
 /* ------------------------------------------------------------------ */
+/*  ADMIN CONTROLLER (lazy-init, isolated from main game)             */
+/* ------------------------------------------------------------------ */
+
+const CustomSkins=[];
+function allSkins(){return[...BALL_SKINS,...CustomSkins];}
+
+class AdminController {
+  constructor(){
+    this.pixels=Array(400).fill('transparent');
+    this.paintColor='#ff0000';
+    this.editKey=null;
+    this._buildPalette();
+    this._setupCanvas();
+    this._buildList();
+    this._bindTools();
+  }
+  _buildPalette(){
+    const pal=document.getElementById('colorPalette'),cols=['#ff0000','#ff8800','#ffdd00','#44ff44','#00cc00','#00ffcc','#00aaff','#4444ff','#aa00ff','#ff44ff','#ffffff','#aaaaaa','#666666','#222222','#8B4513','#ffcc88','transparent'];
+    pal.innerHTML='';
+    for(const c of cols){
+      const s=document.createElement('span');s.className='palette-swatch';
+      s.style.backgroundColor=c==='transparent'?'':c;
+      if(c==='transparent')s.style.background='linear-gradient(45deg,#888 25%,transparent 25%,transparent 75%,#888 75%)';
+      s.addEventListener('click',()=>{this.paintColor=c;pal.querySelectorAll('.palette-swatch').forEach(x=>x.classList.remove('active'));s.classList.add('active');});
+      pal.appendChild(s);
+    }
+    pal.firstChild.classList.add('active');
+  }
+  _setupCanvas(){
+    const cv=document.getElementById('editorCanvas'),ctx=cv.getContext('2d');
+    let down=false,erase=false;
+    const cell=e=>{const r=cv.getBoundingClientRect();return[Math.floor((e.clientX-r.left)/12),Math.floor((e.clientY-r.top)/12)];};
+    cv.onmousedown=e=>{down=true;erase=e.button===2;const[p]=cell(e);this._paint(...cell(e),erase);e.preventDefault();};
+    cv.onmousemove=e=>{if(!down)return;this._paint(...cell(e),erase);};
+    cv.onmouseup=()=>{down=false;};
+    cv.onmouseleave=()=>{down=false;};
+    cv.oncontextmenu=e=>e.preventDefault();
+    this._draw();
+  }
+  _paint(px,py,erase){if(px<0||px>19||py<0||py>19)return;this.pixels[py*20+px]=erase?'transparent':this.paintColor;this._draw();}
+  _draw(){
+    const cv=document.getElementById('editorCanvas');if(!cv)return;const ctx=cv.getContext('2d');
+    ctx.clearRect(0,0,240,240);
+    for(let py=0;py<20;py++)for(let px=0;px<20;px++){const c=this.pixels[py*20+px];ctx.fillStyle=c==='transparent'?'#1a1a1a':c;ctx.fillRect(px*12,py*12,12,12);}
+    ctx.strokeStyle='#333';ctx.lineWidth=.5;
+    for(let i=0;i<=20;i++){ctx.beginPath();ctx.moveTo(i*12,0);ctx.lineTo(i*12,240);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*12);ctx.lineTo(240,i*12);ctx.stroke();}
+  }
+  _buildList(){
+    const list=document.getElementById('adminSkinList');list.innerHTML='';
+    for(const s of allSkins()){
+      const d=document.createElement('div');d.className='admin-skin-item';
+      d.innerHTML=`<canvas class="admin-skin-thumb" width="24" height="24"></canvas><span>${s.label}</span>`;
+      d.addEventListener('click',()=>this._load(s));
+      const cv=d.querySelector('canvas'),ctx=cv.getContext('2d');
+      if(s.key.startsWith('custom_')){
+        for(let py=0;py<20;py++)for(let px=0;px<20;px++){const c=s.pixels[py*20+px];if(c&&c!=='transparent'){ctx.fillStyle=c;ctx.fillRect(px*1.2,py*1.2,1.5,1.5);}}
+      }else{BallRenderer.draw(ctx,12,12,20,'#fff',s.key,0);}
+      list.appendChild(d);
+    }
+  }
+  _load(s){
+    this.editKey=s.key;document.getElementById('skinNameInput').value=s.label;
+    document.querySelectorAll('.admin-skin-item').forEach(d=>d.classList.toggle('active',d.querySelector('span').textContent===s.label));
+    if(s.key.startsWith('custom_')){this.pixels=[...s.pixels];}
+    else{this.pixels=Array(400).fill('transparent');try{const ec=document.getElementById('editorCanvas'),ctx=ec.getContext('2d');ctx.clearRect(0,0,240,240);BallRenderer.draw(ctx,120,120,200,'#fff',s.key,0);const id=ctx.getImageData(0,0,240,240).data;for(let py=0;py<20;py++)for(let px=0;px<20;px++){const cx=Math.floor((px+.5)*12),cy=Math.floor((py+.5)*12),i=(cy*240+cx)*4;this.pixels[py*20+px]=id[i+3]>20?rgbToHex(id[i],id[i+1],id[i+2]):'transparent';}ctx.clearRect(0,0,240,240);}catch(e){}}
+    this._draw();
+  }
+  _bindTools(){
+    document.querySelector('[data-action="admin-save"]').addEventListener('click',()=>this._save());
+    document.querySelector('[data-action="admin-delete"]').addEventListener('click',()=>this._del());
+    document.querySelector('[data-action="admin-clear"]').addEventListener('click',()=>{this.pixels=Array(400).fill('transparent');this.editKey=null;document.getElementById('skinNameInput').value='';this._draw();document.querySelectorAll('.admin-skin-item').forEach(d=>d.classList.remove('active'));});
+  }
+  _save(){
+    const name=document.getElementById('skinNameInput').value.trim()||'CUSTOM';
+    if(this.editKey&&this.editKey.startsWith('custom_')){
+      const i=CustomSkins.findIndex(s=>s.key===this.editKey);if(i>=0){CustomSkins[i].label=name;CustomSkins[i].pixels=[...this.pixels];}
+    }else{const k='custom_'+Date.now();CustomSkins.push({key:k,label:name,pixels:[...this.pixels]});this.editKey=k;}
+    this._buildList();
+    // refresh ball skin buttons in the BALL menu
+    const g=document.getElementById('ballSkinGrid');if(g){g.innerHTML='';for(const{key,label}of allSkins()){const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;b.addEventListener('click',()=>{settings.ballSkin=key;if(window._game)window._game.ball.skin=key;});g.appendChild(b);}}
+    // refresh frenzy balls reference
+  }
+  _del(){
+    if(!this.editKey||!this.editKey.startsWith('custom_'))return;
+    const i=CustomSkins.findIndex(s=>s.key===this.editKey);if(i>=0)CustomSkins.splice(i,1);
+    this.pixels=Array(400).fill('transparent');this.editKey=null;document.getElementById('skinNameInput').value='';this._draw();this._buildList();
+    const g=document.getElementById('ballSkinGrid');if(g){g.innerHTML='';for(const{key,label}of allSkins()){const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;b.addEventListener('click',()=>{settings.ballSkin=key;if(window._game)window._game.ball.skin=key;});g.appendChild(b);}}
+  }
+}
+
+/* ---- custom skin renderer hook ---- */
+(function(){
+  const orig=BallRenderer.draw;
+  BallRenderer.draw=function(ctx,x,y,s,c,skin,t){
+    if(skin&&skin.startsWith('custom_')){
+      const cs=CustomSkins.find(k=>k.key===skin);if(cs){const N=20,cell=s/N;for(let py=0;py<N;py++)for(let px=0;px<N;px++){const cl=cs.pixels[py*N+px];if(cl&&cl!=='transparent'){ctx.fillStyle=cl;ctx.fillRect(x-s/2+px*cell,y-s/2+py*cell,cell+1,cell+1);}}return;}
+    }
+    orig.call(this,ctx,x,y,s,c,skin,t);
+  };
+})();
+
+/* ------------------------------------------------------------------ */
 /*  BOOTSTRAP                                                          */
 /* ------------------------------------------------------------------ */
 
 (function main(){
   const canvas=document.getElementById('gameCanvas'),sl=document.getElementById('scoreLeft'),sr=document.getElementById('scoreRight');
   const game=new PongGame(canvas,sl,sr),menu=new MenuController(game);
+  window._game=game;
   menu.showMainMenu();game._applyThemeAndColors();applyThemeCSS(settings.theme);menu._highlightThemeDots();
 
   window.addEventListener('keydown',e=>{
     if(e.key!=='Escape')return;
     if(!menu.menuOverlay.classList.contains('hidden')||!menu.pauseOverlay.classList.contains('hidden')){
       if(!menu.pauseOverlay.classList.contains('hidden'))menu.resumeGame();
-      else{const subs=[menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}
+      else{const subs=[menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall,menu.menuAdmin];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}
       return;
     }
     if(game.state==='playing'||game.state==='serving'||game.state==='goal'){if(game.paused)menu.resumeGame();else menu.pauseGame();}

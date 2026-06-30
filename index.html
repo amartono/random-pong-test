@@ -32,6 +32,7 @@
             <span id="modeLabel">PLAYER vs PLAYER</span>
           </button>
           <button class="menu-btn" data-action="skins">CUSTOMIZE</button>
+        <button class="menu-btn admin-link" data-action="admin">BALL EDITOR</button>
           <button class="menu-btn toggle" data-action="sound">
             SOUND: <span id="soundLabel">ON</span>
           </button>
@@ -76,6 +77,27 @@
           <div class="skin-section"><p class="menu-label">SKIN</p><div class="ball-skin-grid" id="ballSkinGrid"></div></div>
           <div class="skin-section"><p class="menu-label">COLOR</p><div class="color-picker-row"><input type="color" id="ballColor"><button class="menu-btn tiny" data-action="reset-ball">RESET</button></div></div>
           <div class="skin-section"><p class="menu-label">SIZE: <span id="ballSizeVal">16</span></p><input type="range" id="ballSizeSlider" min="6" max="32" value="16" class="style-slider"><button class="menu-btn tiny" data-action="reset-ball-size">RESET</button></div>
+          <button class="menu-btn back-btn" data-action="back">BACK</button>
+        </div>
+
+        <!-- Admin Panel -->
+        <div class="menu-screen hidden" id="menuAdmin">
+          <h2 class="menu-subtitle">BALL EDITOR</h2>
+          <div class="admin-layout">
+            <div class="admin-list" id="adminSkinList"></div>
+            <div class="admin-editor">
+              <input type="text" id="skinNameInput" class="admin-input" placeholder="Skin name" maxlength="12">
+              <div class="editor-canvas-wrap">
+                <canvas id="editorCanvas" width="240" height="240"></canvas>
+              </div>
+              <div class="color-palette" id="colorPalette"></div>
+              <div class="editor-tools">
+                <button class="menu-btn small" data-action="admin-save">SAVE</button>
+                <button class="menu-btn small" data-action="admin-delete">DELETE</button>
+                <button class="menu-btn small" data-action="admin-clear">CLEAR</button>
+              </div>
+            </div>
+          </div>
           <button class="menu-btn back-btn" data-action="back">BACK</button>
         </div>
       </div>

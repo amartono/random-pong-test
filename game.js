@@ -234,61 +234,119 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: pentagons-on-white — black pentagons on white circle, hexagons are the space between
+  // -- soccer: built from scratch — geodesic panel network on 3D sphere
   _soccer(ctx,x,y,r){
-    const T=Math.PI*2, N=5;
-    const θ=Array.from({length:N},(_,i)=>T/N*i-Math.PI/2);
-    // center pentagon vertices
-    const cr=r*.24;
-    const C=θ.map(a=>({x:x+Math.cos(a)*cr, y:y+Math.sin(a)*cr}));
-    // perimeter pentagon positions — each at same angle, further out, rotated to face center
-    const pd=r*.56, pr=r*.13;
-    const P=θ.map(a=>{
-      const cx=x+Math.cos(a)*pd, cy=y+Math.sin(a)*pd;
-      return Array.from({length:N},(_,k)=>({
-        x:cx+Math.cos(a+Math.PI+T/N*k)*pr,
-        y:cy+Math.sin(a+Math.PI+T/N*k)*pr,
-      }));
-    });
+    const TAU=Math.PI*2, N=5, seg=TAU/N;
 
-    // white base circle
-    ctx.fillStyle='#f4f4f4';ctx.beginPath();ctx.arc(x,y,r,0,T);ctx.fill();
+    // ---- 3D sphere with highlight and shadow ----
+    const sphere=ctx.createRadialGradient(x-r*.28,y-r*.33,r*.02,x+r*.05,y+r*.05,r*1.03);
+    sphere.addColorStop(0,'#ffffff');sphere.addColorStop(.22,'#f7f7f7');
+    sphere.addColorStop(.48,'#e2e2e2');sphere.addColorStop(.74,'#c2c2c2');
+    sphere.addColorStop(1,'#929292');
+    ctx.fillStyle=sphere;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
 
-    // black pentagons
-    ctx.fillStyle='#1a1a1a';
-    ctx.beginPath();
-    for(let i=0;i<N;i++){if(i===0)ctx.moveTo(C[i].x,C[i].y);else ctx.lineTo(C[i].x,C[i].y);}
+    // ---- polar helper ----
+    const P=(a,rad)=>[x+Math.cos(a)*rad,y+Math.sin(a)*rad];
+
+    // ---- ring radii ----
+    const r0=r*.22;     // center pentagon vertices
+    const r1=r*.50;     // mid ring (hexagon vertices)
+    const r2=r*.72;     // outer pentagon tips
+
+    // angular spread of hexagon vertices around each radial
+    const spread=seg*.34;
+
+    // ---- compute all vertices ----
+    const base=Array.from({length:N},(_,i)=>-Math.PI/2+seg*i);   // start from top
+
+    // R0[i] = center pentagon vertex i
+    const R0=base.map(a=>P(a,r0));
+
+    // R1[2*i]=left-of-radial, R1[2*i+1]=right-of-radial (ring 1)
+    const R1=[];
+    for(let i=0;i<N;i++){
+      const a=base[i];
+      R1.push(P(a-spread,r1));   // 2*i: left of radial i
+      R1.push(P(a+spread,r1));   // 2*i+1: right of radial i
+    }
+
+    // R2[i] = outer pentagon tip at angle base[i]
+    const R2=base.map(a=>P(a,r2));
+
+    // ---- build seam network (all lines in one Path2D) ----
+    const S=new Path2D();
+
+    // center pentagon
+    S.moveTo(R0[0][0],R0[0][1]);
+    for(let i=1;i<N;i++)S.lineTo(R0[i][0],R0[i][1]);
+    S.closePath();
+
+    // radial lines: R0 → junction between R1-pair → R2
+    for(let i=0;i<N;i++){
+      const jx=(R1[2*i][0]+R1[2*i+1][0])/2;   // midpoint between R1 pair
+      const jy=(R1[2*i][1]+R1[2*i+1][1])/2;
+      S.moveTo(R0[i][0],R0[i][1]);S.lineTo(jx,jy);S.lineTo(R2[i][0],R2[i][1]);
+    }
+
+    // R1 connections forming hexagon edges
+    // Left-of-radial-i connects to right-of-radial-(i-1)
+    for(let i=0;i<N;i++){
+      const iPrev=(i-1+N)%N;
+      S.moveTo(R1[2*i][0],R1[2*i][1]);       // left of radial i
+      S.lineTo(R1[2*iPrev+1][0],R1[2*iPrev+1][1]); // right of radial i-1
+    }
+
+    // R1 to R2 connections (outer pentagon edges)
+    for(let i=0;i<N;i++){
+      const iPrev=(i-1+N)%N;
+      // right-of-radial-iPrev to R2[i]
+      S.moveTo(R1[2*iPrev+1][0],R1[2*iPrev+1][1]);
+      S.lineTo(R2[i][0],R2[i][1]);
+      // R2[i] to left-of-radial-i
+      S.lineTo(R1[2*i][0],R1[2*i][1]);
+    }
+
+    // ---- draw seam shadows (behind pentagons for depth) ----
+    ctx.save();
+    ctx.lineJoin='round';ctx.lineCap='round';
+    const shadowW=Math.max(1.8,r*.075);
+    ctx.strokeStyle='rgba(0,0,0,.28)';ctx.lineWidth=shadowW;
+    ctx.stroke(S);
+
+    // ---- fill black pentagons ----
+    ctx.fillStyle='#111';
+
+    // center pentagon
+    ctx.beginPath();ctx.moveTo(R0[0][0],R0[0][1]);
+    for(let i=1;i<N;i++)ctx.lineTo(R0[i][0],R0[i][1]);
     ctx.closePath();ctx.fill();
-    for(const p of P){
+
+    // 5 perimeter pentagons — formed by R1 vertices and R2 tip
+    for(let i=0;i<N;i++){
+      const iPrev=(i-1+N)%N;
+      const jx=(R1[2*i][0]+R1[2*i+1][0])/2;
+      const jy=(R1[2*i][1]+R1[2*i+1][1])/2;
       ctx.beginPath();
-      for(let k=0;k<N;k++){if(k===0)ctx.moveTo(p[k].x,p[k].y);else ctx.lineTo(p[k].x,p[k].y);}
-      ctx.closePath();ctx.fill();
+      ctx.moveTo(R1[2*iPrev+1][0],R1[2*iPrev+1][1]);   // right of i-1
+      ctx.lineTo(R2[i][0],R2[i][1]);                    // outer tip
+      ctx.lineTo(R1[2*i][0],R1[2*i][1]);                // left of i
+      ctx.lineTo(jx,jy);                                 // junction on radial i
+      ctx.closePath();
+      ctx.fill();
     }
 
-    // seam outlines — every pentagon edge
-    ctx.strokeStyle='#666';ctx.lineWidth=.6;
-    ctx.lineJoin='round';
-    ctx.beginPath();
-    for(let i=0;i<N;i++){if(i===0)ctx.moveTo(C[i].x,C[i].y);else ctx.lineTo(C[i].x,C[i].y);}
-    ctx.closePath();ctx.stroke();
-    for(const p of P){
-      ctx.beginPath();
-      for(let k=0;k<N;k++){if(k===0)ctx.moveTo(p[k].x,p[k].y);else ctx.lineTo(p[k].x,p[k].y);}
-      ctx.closePath();ctx.stroke();
-    }
-    // radial seam lines: each center vertex to its perimeter pentagon's inward vertex
-    ctx.strokeStyle='#666';ctx.lineWidth=.55;
-    for(let i=0;i<N;i++){
-      ctx.beginPath();ctx.moveTo(C[i].x,C[i].y);ctx.lineTo(P[i][0].x,P[i][0].y);ctx.stroke();
-    }
-    // perimeter-to-perimeter seams: connect adjacent perimeter pentagons' outward vertices
-    for(let i=0;i<N;i++){
-      const i2=(i+1)%N;
-      ctx.beginPath();ctx.moveTo(P[i][2].x,P[i][2].y);ctx.lineTo(P[i2][4].x,P[i2][4].y);ctx.stroke();
-    }
-    // ball rim
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=.85;
-    ctx.beginPath();ctx.arc(x,y,r,0,T);ctx.stroke();
+    // ---- bold seam lines on top ----
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=Math.max(1.1,r*.055);
+    ctx.stroke(S);
+    ctx.restore();
+
+    // ---- ball rim ----
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=Math.max(1.2,r*.068);
+    ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
+
+    // inner highlight
+    ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=Math.max(.5,r*.026);
+    ctx.beginPath();ctx.arc(x,y,r-Math.max(.5,r*.028),0,TAU);ctx.stroke();
   },
 
   // -- tennis: golden yellow (#dcd214), two crossing white seam curves, fuzzy edge

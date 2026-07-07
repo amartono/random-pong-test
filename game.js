@@ -174,13 +174,19 @@ const BALL_SKINS = [
 
 const CustomBallRegistry = (()=>{
   const STORE='pong_custom_balls';
-  const _cache=new Map();   // {id: HTMLImageElement}
+  const STORE_OV='pong_ball_overrides';   // { builtinKey: {src, shading} }
+  const STORE_HIDE='pong_hidden_builtins'; // [builtinKey]
+  const _cache=new Map();   // {id/ov_key: HTMLImageElement}
 
   function _load(){try{return JSON.parse(localStorage.getItem(STORE)||'[]');}catch(e){return[];}}
   function _save(data){localStorage.setItem(STORE,JSON.stringify(data));}
+  function _loadOv(){try{return JSON.parse(localStorage.getItem(STORE_OV)||'{}');}catch(e){return{};}}
+  function _saveOv(d){localStorage.setItem(STORE_OV,JSON.stringify(d));}
+  function _loadHide(){try{return JSON.parse(localStorage.getItem(STORE_HIDE)||'[]');}catch(e){return[];}}
+  function _saveHide(d){localStorage.setItem(STORE_HIDE,JSON.stringify(d));}
 
-  // clear image cache (call when ball deleted)
-  function _evict(id){if(_cache.has(id)){_cache.delete(id);}}
+  // clear image cache (call when ball changed/deleted)
+  function _evict(id){if(_cache.has(id))_cache.delete(id);}
 
   return {
     /** Get all custom balls as {id, name, src, shading} */
@@ -228,6 +234,36 @@ const CustomBallRegistry = (()=>{
 
     /** Check if a skin key refers to a custom ball */
     isCustom(skinKey){return typeof skinKey==='string'&&skinKey.startsWith('cb_');},
+
+    /* ---- built-in ball overrides ---- */
+
+    /** Get override {src, shading} for a built-in key, or null */
+    getOverride(key){return _loadOv()[key]||null;},
+
+    /** Save an override image for a built-in ball */
+    setOverride(key,src,shading){
+      const ov=_loadOv();ov[key]={src,shading:!!shading};_saveOv(ov);_evict('ov_'+key);
+    },
+
+    /** Remove an override, restoring the original procedural ball */
+    removeOverride(key){
+      const ov=_loadOv();if(ov[key]){delete ov[key];_saveOv(ov);_evict('ov_'+key);return true;}return false;
+    },
+
+    /** Get or load the HTMLImageElement for a built-in override */
+    overrideImage(key){
+      const ck='ov_'+key;
+      if(_cache.has(ck))return _cache.get(ck);
+      const ov=_loadOv()[key];if(!ov)return null;
+      const img=new Image();img.src=ov.src;_cache.set(ck,img);
+      return img;
+    },
+
+    /* ---- hidden built-ins ---- */
+    hiddenList(){return _loadHide();},
+    isHidden(key){return _loadHide().includes(key);},
+    hide(key){const h=_loadHide();if(!h.includes(key)){h.push(key);_saveHide(h);}},
+    unhide(key){const h=_loadHide().filter(k=>k!==key);_saveHide(h);},
   };
 })();
 
@@ -286,6 +322,11 @@ function createBallPaintEditor(){
       undoStack=[];this._pushUndo();
     },
 
+    /** reset undo history, using current canvas content as the baseline */
+    resetUndo(){
+      undoStack=[];this._pushUndo();
+    },
+
     _pushUndo(){
       undoStack.push(ctx.getImageData(0,0,canvas.width,canvas.height));
       if(undoStack.length>20)undoStack.shift();
@@ -304,8 +345,9 @@ function createBallPaintEditor(){
         const img=CustomBallRegistry.image(skinKey);
         if(img&&img.complete){ctx.drawImage(img,0,0,canvas.width,canvas.height);}
       }else{
-        // render procedural ball onto canvas
-        BallRenderer.draw(ctx,canvas.width/2,canvas.height/2,canvas.width*.9,'#ffffff',skinKey,0);
+        // render procedural ball to FILL the canvas (diameter = canvas width) so the
+        // inscribed circle matches the in-game clip — otherwise saved balls look smaller
+        BallRenderer.draw(ctx,canvas.width/2,canvas.height/2,canvas.width,'#ffffff',skinKey,0);
       }
       undoStack=[];
       this._pushUndo();
@@ -475,22 +517,15 @@ const BallRenderer = {
       const img=CustomBallRegistry.image(skin);
       const meta=CustomBallRegistry.get(skin);
       if(!img||!meta)return;
-      ctx.save();
-      // clip to circle
-      ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.clip();
-      // draw image centered and scaled to fill
-      const d=h*2;
-      ctx.drawImage(img, x-h, y-h, d, d);
-      // optional 3D shading overlay
-      if(meta.shading){
-        const sg=ctx.createRadialGradient(x-h*.3,y-h*.35,h*.03,x,y,h);
-        sg.addColorStop(0,'rgba(255,255,255,0)');
-        sg.addColorStop(.5,'rgba(255,255,255,0)');
-        sg.addColorStop(1,'rgba(0,0,0,.35)');
-        ctx.fillStyle=sg;ctx.fillRect(x-h,y-h,d,d);
-      }
-      ctx.restore();
+      this._drawImageBall(ctx,x,y,h,img,meta.shading);
       return;
+    }
+
+    // ---- built-in ball with a user override image ----
+    const ov=CustomBallRegistry.getOverride(skin);
+    if(ov){
+      const img=CustomBallRegistry.overrideImage(skin);
+      if(img){this._drawImageBall(ctx,x,y,h,img,ov.shading);return;}
     }
 
     // ---- procedural skins ----
@@ -526,6 +561,23 @@ const BallRenderer = {
       default:
         ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();
     }
+  },
+
+  // -- shared: draw an image-based ball (custom upload or built-in override)
+  _drawImageBall(ctx,x,y,h,img,shading){
+    if(!img||!img.complete||img.naturalWidth===0)return;
+    ctx.save();
+    ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.clip();
+    const d=h*2;
+    ctx.drawImage(img,x-h,y-h,d,d);
+    if(shading){
+      const sg=ctx.createRadialGradient(x-h*.3,y-h*.35,h*.03,x,y,h);
+      sg.addColorStop(0,'rgba(255,255,255,0)');
+      sg.addColorStop(.5,'rgba(255,255,255,0)');
+      sg.addColorStop(1,'rgba(0,0,0,.35)');
+      ctx.fillStyle=sg;ctx.fillRect(x-h,y-h,d,d);
+    }
+    ctx.restore();
   },
 
   // -- basketball: rich burnt orange (#b8511a range), thick black ribs, pebble texture
@@ -1496,6 +1548,7 @@ class MenuController {
   _buildBallSkinButtons(){
     const g=document.getElementById('ballSkinGrid');g.innerHTML='';
     for(const{key,label}of BALL_SKINS){
+      if(CustomBallRegistry.isHidden(key))continue;   // skip hidden built-ins
       const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;
       b.addEventListener('click',()=>this._onBallSkinClick(key));g.appendChild(b);
     }
@@ -1620,7 +1673,7 @@ class MenuController {
 
   /* ---- ball paint editor ---- */
 
-  _openPaintEditor(editingId){
+  _openPaintEditor(target){
     // lazy-init editor + pointer bindings once
     if(!this.paintEditor){
       this.paintEditor=createBallPaintEditor();
@@ -1630,30 +1683,46 @@ class MenuController {
       cv.addEventListener('pointerup',e=>this.paintEditor.onPointerUp(e.clientX,e.clientY));
       cv.addEventListener('pointerleave',e=>this.paintEditor.onPointerUp(e.clientX,e.clientY));
     }
-    this._paintEditingId=editingId||null;
     document.getElementById('paintLoadGrid').classList.add('hidden');
+    const nameField=document.getElementById('paintName');
 
-    if(editingId){
-      const b=CustomBallRegistry.get(editingId);
-      document.getElementById('paintName').value=b?b.name:'';
-      // load existing image onto canvas
-      if(b){
-        const img=new Image();
-        img.onload=()=>{
-          const pc=this.paintEditor.canvas,pctx=pc.getContext('2d');
-          pctx.clearRect(0,0,pc.width,pc.height);
-          pctx.drawImage(img,0,0,pc.width,pc.height);
-          this.paintEditor._pushUndo();
-        };
-        img.src=b.src;
-      }else{
-        this.paintEditor.clear();
-      }
+    // determine mode from target
+    let mode='new';
+    if(typeof target==='string'){
+      mode=CustomBallRegistry.isCustom(target)?'custom':'builtin';
+    }
+    this._paintMode=mode;
+    this._paintEditingId=(mode==='custom')?target:null;
+    this._paintBuiltinKey=(mode==='builtin')?target:null;
+
+    if(mode==='custom'){
+      const b=CustomBallRegistry.get(target);
+      nameField.disabled=false;
+      nameField.value=b?b.name:'';
+      if(b)this._paintLoadSrc(b.src);else this.paintEditor.clear();
+    }else if(mode==='builtin'){
+      const lbl=(BALL_SKINS.find(s=>s.key===target)||{}).label||target;
+      nameField.value=lbl;nameField.disabled=true;   // built-in keeps its name
+      const ov=CustomBallRegistry.getOverride(target);
+      if(ov)this._paintLoadSrc(ov.src);        // continue editing existing override
+      else this.paintEditor.loadBall(target);  // start from the procedural ball
     }else{
-      document.getElementById('paintName').value='';
+      nameField.disabled=false;nameField.value='';
       this.paintEditor.clear();
     }
     this._showSub(this.menuBallPaint);
+  }
+
+  /** Load an image data URL onto the paint canvas */
+  _paintLoadSrc(src){
+    const img=new Image();
+    img.onload=()=>{
+      const pc=this.paintEditor.canvas,pctx=pc.getContext('2d');
+      pctx.clearRect(0,0,pc.width,pc.height);
+      pctx.drawImage(img,0,0,pc.width,pc.height);
+      this.paintEditor.resetUndo();
+    };
+    img.src=src;
   }
 
   _togglePaintLoadGrid(){
@@ -1667,14 +1736,19 @@ class MenuController {
   }
 
   _paintEditorSave(){
-    const name=document.getElementById('paintName').value.trim();
-    if(!name){alert('ENTER A NAME');return;}
     const src=this.paintEditor.getDataURL();
-    if(this._paintEditingId){
+    if(this._paintMode==='builtin'){
+      CustomBallRegistry.setOverride(this._paintBuiltinKey,src,false);
+    }else if(this._paintMode==='custom'){
+      const name=document.getElementById('paintName').value.trim();
+      if(!name){alert('ENTER A NAME');return;}
       CustomBallRegistry.update(this._paintEditingId,name,src,false);
     }else{
+      const name=document.getElementById('paintName').value.trim();
+      if(!name){alert('ENTER A NAME');return;}
       CustomBallRegistry.add(name,src,false);
     }
+    this._buildBallSkinButtons();
     this._openBallEditor();
   }
 
@@ -1704,26 +1778,76 @@ class MenuController {
 
   _renderBallEditorList(){
     const el=document.getElementById('customBallList');
-    const balls=CustomBallRegistry.list();
-    if(balls.length===0){
-      el.innerHTML='<div class="custom-ball-empty">NO CUSTOM TEXTURES YET</div>';
-      return;
+    el.innerHTML='';
+
+    // helper: make a row
+    const makeRow=(key,label,isBuiltin)=>{
+      const row=document.createElement('div');row.className='custom-ball-row';
+      const thumb=document.createElement('canvas');thumb.width=32;thumb.height=32;thumb.className='cb-thumb';
+      this._renderThumb(thumb,key);
+      const name=document.createElement('span');name.className='cb-name';name.textContent=label;
+      row.appendChild(thumb);row.appendChild(name);
+
+      const editBtn=document.createElement('button');editBtn.className='menu-btn tiny';editBtn.textContent='EDIT';
+      editBtn.addEventListener('click',()=>this._openPaintEditor(key));
+      row.appendChild(editBtn);
+
+      if(isBuiltin){
+        // RESET (only if overridden)
+        if(CustomBallRegistry.getOverride(key)){
+          const resetBtn=document.createElement('button');resetBtn.className='menu-btn tiny';resetBtn.textContent='RESET';
+          resetBtn.addEventListener('click',()=>{CustomBallRegistry.removeOverride(key);this._refreshAfterBallChange();});
+          row.appendChild(resetBtn);
+        }
+        // HIDE / SHOW toggle
+        const hidden=CustomBallRegistry.isHidden(key);
+        const hideBtn=document.createElement('button');hideBtn.className='menu-btn tiny';hideBtn.textContent=hidden?'SHOW':'DEL';
+        if(hidden)row.style.opacity='0.5';
+        hideBtn.addEventListener('click',()=>{
+          if(hidden)CustomBallRegistry.unhide(key);else CustomBallRegistry.hide(key);
+          this._refreshAfterBallChange();
+        });
+        row.appendChild(hideBtn);
+      }else{
+        const delBtn=document.createElement('button');delBtn.className='menu-btn tiny';delBtn.textContent='DEL';
+        delBtn.addEventListener('click',()=>this._ballEditorDelete(key));
+        row.appendChild(delBtn);
+      }
+      return row;
+    };
+
+    // section: built-in balls
+    const hdr1=document.createElement('p');hdr1.className='menu-label';hdr1.textContent='BUILT-IN';
+    el.appendChild(hdr1);
+    for(const s of BALL_SKINS)el.appendChild(makeRow(s.key,s.label,true));
+
+    // section: custom balls
+    const customs=CustomBallRegistry.list();
+    const hdr2=document.createElement('p');hdr2.className='menu-label';hdr2.textContent='CUSTOM';
+    el.appendChild(hdr2);
+    if(customs.length===0){
+      const empty=document.createElement('div');empty.className='custom-ball-empty';empty.textContent='NONE YET';
+      el.appendChild(empty);
+    }else{
+      for(const b of customs)el.appendChild(makeRow(b.id,b.name,false));
     }
-    el.innerHTML=balls.map(b=>{
-      return `<div class="custom-ball-row">
-        <img class="cb-thumb" src="${b.src}" alt="${b.name}">
-        <span class="cb-name">${b.name}</span>
-        <button class="menu-btn tiny" data-action="ball-edit" data-ball-id="${b.id}">EDIT</button>
-        <button class="menu-btn tiny" data-action="ball-delete" data-ball-id="${b.id}">DEL</button>
-      </div>`;
-    }).join('');
-    // bind row buttons
-    el.querySelectorAll('[data-action="ball-edit"]').forEach(b=>{
-      b.addEventListener('click',()=>this._openPaintEditor(b.dataset.ballId));
-    });
-    el.querySelectorAll('[data-action="ball-delete"]').forEach(b=>{
-      b.addEventListener('click',()=>this._ballEditorDelete(b.dataset.ballId));
-    });
+  }
+
+  /** Draw a ball thumbnail on a small canvas, redrawing when async images load */
+  _renderThumb(cv,key){
+    const ctx=cv.getContext('2d'),s=cv.width;
+    const paint=()=>{ctx.clearRect(0,0,s,s);BallRenderer.draw(ctx,s/2,s/2,s-2,'#ffffff',key,0);};
+    paint();
+    let img=null;
+    if(CustomBallRegistry.isCustom(key))img=CustomBallRegistry.image(key);
+    else if(CustomBallRegistry.getOverride(key))img=CustomBallRegistry.overrideImage(key);
+    if(img&&!img.complete)img.addEventListener('load',paint,{once:true});
+  }
+
+  /** Refresh editor list + main grid after any ball change */
+  _refreshAfterBallChange(){
+    this._renderBallEditorList();
+    this._buildBallSkinButtons();
   }
 
   _ballEditorShowForm(mode,ballId){
@@ -1774,7 +1898,7 @@ class MenuController {
   _ballEditorDelete(id){
     if(!confirm('DELETE THIS TEXTURE?'))return;
     CustomBallRegistry.remove(id);
-    this._renderBallEditorList();
+    this._refreshAfterBallChange();
   }
 
   _renderEditorPreview(src){

@@ -639,6 +639,7 @@ input[type="color"]::-webkit-color-swatch {
 .paint-canvas-wrap {
   width: 200px;
   height: 200px;
+  flex-shrink: 0;
   border-radius: 50%;
   overflow: hidden;
   border: 2px solid var(--accent);

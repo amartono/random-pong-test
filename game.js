@@ -1123,8 +1123,9 @@ class AIOpponent {
 
 class InputHandler {
   constructor(){this.keys={};this._onDown=this._onDown.bind(this);this._onUp=this._onUp.bind(this);window.addEventListener('keydown',this._onDown);window.addEventListener('keyup',this._onUp);}
-  _onDown(e){this.keys[e.key]=true;if(['ArrowUp','ArrowDown','w','s','W','S',' ','Escape'].includes(e.key))e.preventDefault();}
-  _onUp(e){this.keys[e.key]=false;}
+  _isTyping(e){const t=e.target;return t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable);}
+  _onDown(e){if(this._isTyping(e))return;this.keys[e.key]=true;if(['ArrowUp','ArrowDown','w','s','W','S',' ','Escape'].includes(e.key))e.preventDefault();}
+  _onUp(e){if(this._isTyping(e))return;this.keys[e.key]=false;}
   isDown(key){return!!this.keys[key];}
   destroy(){window.removeEventListener('keydown',this._onDown);window.removeEventListener('keyup',this._onUp);}
 }
@@ -1949,6 +1950,7 @@ class MenuController {
 
   window.addEventListener('keydown',e=>{
     if(e.key!=='Escape')return;
+    const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)){t.blur();return;}
     if(!menu.menuOverlay.classList.contains('hidden')||!menu.pauseOverlay.classList.contains('hidden')){
       if(!menu.pauseOverlay.classList.contains('hidden'))menu.resumeGame();
       else{const subs=[menu.menuSkins,menu.menuTheme,menu.menuPaddle,menu.menuBall];if(subs.some(m=>!m.classList.contains('hidden')))menu._onAction('back');}

@@ -76,7 +76,30 @@
           <div class="skin-section"><p class="menu-label">SKIN</p><div class="ball-skin-grid" id="ballSkinGrid"></div></div>
           <div class="skin-section"><p class="menu-label">COLOR</p><div class="color-picker-row"><input type="color" id="ballColor"><button class="menu-btn tiny" data-action="reset-ball">RESET</button></div></div>
           <div class="skin-section"><p class="menu-label">SIZE: <span id="ballSizeVal">16</span></p><input type="range" id="ballSizeSlider" min="6" max="32" value="16" class="style-slider"><button class="menu-btn tiny" data-action="reset-ball-size">RESET</button></div>
+          <button class="menu-btn small" data-action="ball-editor">EDIT TEXTURES</button>
           <button class="menu-btn back-btn" data-action="back">BACK</button>
+        </div>
+
+        <!-- Ball Texture Editor -->
+        <div class="menu-screen hidden" id="menuBallEditor">
+          <h2 class="menu-subtitle">BALL EDITOR</h2>
+          <p class="menu-label">YOUR CUSTOM TEXTURES</p>
+          <div class="custom-ball-list" id="customBallList"></div>
+          <button class="menu-btn small" data-action="ball-add-new">+ ADD NEW TEXTURE</button>
+
+          <!-- Add/Edit form (hidden until adding/editing) -->
+          <div class="ball-editor-form hidden" id="ballEditorForm">
+            <canvas id="editorPreview" width="80" height="80" class="ball-preview-canvas"></canvas>
+            <div class="skin-section"><p class="menu-label">NAME</p><input type="text" id="editorName" class="text-input" maxlength="12" placeholder="MY BALL"></div>
+            <div class="skin-section"><p class="menu-label">IMAGE</p><label class="menu-btn tiny file-label" for="editorFile">CHOOSE IMAGE</label><input type="file" id="editorFile" accept="image/*" class="file-input-hidden"><span class="file-name" id="editorFileName">no file</span></div>
+            <div class="skin-section"><label class="checkbox-row"><input type="checkbox" id="editorShading"> <span>3D SHADING</span></label></div>
+            <div class="editor-btn-row">
+              <button class="menu-btn tiny" data-action="ball-save">SAVE</button>
+              <button class="menu-btn tiny" data-action="ball-cancel">CANCEL</button>
+            </div>
+          </div>
+
+          <button class="menu-btn back-btn" data-action="back-to-ball">BACK</button>
         </div>
       </div>
 

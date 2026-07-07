@@ -169,12 +169,100 @@ const BALL_SKINS = [
 ];
 
 /* ------------------------------------------------------------------ */
+/*  CUSTOM BALL REGISTRY (localStorage-persisted image uploads)         */
+/* ------------------------------------------------------------------ */
+
+const CustomBallRegistry = (()=>{
+  const STORE='pong_custom_balls';
+  const _cache=new Map();   // {id: HTMLImageElement}
+
+  function _load(){try{return JSON.parse(localStorage.getItem(STORE)||'[]');}catch(e){return[];}}
+  function _save(data){localStorage.setItem(STORE,JSON.stringify(data));}
+
+  // clear image cache (call when ball deleted)
+  function _evict(id){if(_cache.has(id)){_cache.delete(id);}}
+
+  return {
+    /** Get all custom balls as {id, name, src, shading} */
+    list(){return _load();},
+
+    /** Get or load the HTMLImageElement for a custom ball */
+    image(id){
+      if(_cache.has(id))return _cache.get(id);
+      const balls=_load(),b=balls.find(b=>b.id===id);
+      if(!b)return null;
+      const img=new Image();img.src=b.src;_cache.set(id,img);
+      return img;
+    },
+
+    /** Get metadata for a single custom ball by id */
+    get(id){return _load().find(b=>b.id===id)||null;},
+
+    /** Add a new custom ball. Returns the created ball. */
+    add(name,src,shading){
+      const balls=_load();
+      const id='cb_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+      const ball={id,name,src,shading:!!shading};
+      balls.push(ball);_save(balls);
+      return ball;
+    },
+
+    /** Update an existing custom ball (name, src, shading). Returns updated ball or null. */
+    update(id,name,src,shading){
+      const balls=_load(),idx=balls.findIndex(b=>b.id===id);
+      if(idx===-1)return null;
+      if(name!==undefined)balls[idx].name=name;
+      if(src!==undefined)balls[idx].src=src;
+      if(shading!==undefined)balls[idx].shading=!!shading;
+      _save(balls);_evict(id);
+      return balls[idx];
+    },
+
+    /** Delete a custom ball by id. Returns true if deleted. */
+    remove(id){
+      const balls=_load(),idx=balls.findIndex(b=>b.id===id);
+      if(idx===-1)return false;
+      balls.splice(idx,1);_save(balls);_evict(id);
+      return true;
+    },
+
+    /** Check if a skin key refers to a custom ball */
+    isCustom(skinKey){return typeof skinKey==='string'&&skinKey.startsWith('cb_');},
+  };
+})();
+
+/* ------------------------------------------------------------------ */
 /*  BALL RENDERER                                                      */
 /* ------------------------------------------------------------------ */
 
 const BallRenderer = {
   draw(ctx,x,y,s,c,skin,t){
     const h=s/2;
+
+    // ---- custom image-based ball ----
+    if(CustomBallRegistry.isCustom(skin)){
+      const img=CustomBallRegistry.image(skin);
+      const meta=CustomBallRegistry.get(skin);
+      if(!img||!meta)return;
+      ctx.save();
+      // clip to circle
+      ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.clip();
+      // draw image centered and scaled to fill
+      const d=h*2;
+      ctx.drawImage(img, x-h, y-h, d, d);
+      // optional 3D shading overlay
+      if(meta.shading){
+        const sg=ctx.createRadialGradient(x-h*.3,y-h*.35,h*.03,x,y,h);
+        sg.addColorStop(0,'rgba(255,255,255,0)');
+        sg.addColorStop(.5,'rgba(255,255,255,0)');
+        sg.addColorStop(1,'rgba(0,0,0,.35)');
+        ctx.fillStyle=sg;ctx.fillRect(x-h,y-h,d,d);
+      }
+      ctx.restore();
+      return;
+    }
+
+    // ---- procedural skins ----
     switch(skin){
       case'circle':
         ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.fill();break;
@@ -234,119 +322,83 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: built from scratch — geodesic panel network on 3D sphere
+  // -- soccer: flat 2D hexagon-face view — white center panel, 3 black pentagons, thin seam web
   _soccer(ctx,x,y,r){
-    const TAU=Math.PI*2, N=5, seg=TAU/N;
+    const TAU=Math.PI*2;
 
-    // ---- 3D sphere with highlight and shadow ----
-    const sphere=ctx.createRadialGradient(x-r*.28,y-r*.33,r*.02,x+r*.05,y+r*.05,r*1.03);
-    sphere.addColorStop(0,'#ffffff');sphere.addColorStop(.22,'#f7f7f7');
-    sphere.addColorStop(.48,'#e2e2e2');sphere.addColorStop(.74,'#c2c2c2');
-    sphere.addColorStop(1,'#929292');
-    ctx.fillStyle=sphere;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
+    // flat white circle (no shading)
+    ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
 
-    // ---- polar helper ----
-    const P=(a,rad)=>[x+Math.cos(a)*rad,y+Math.sin(a)*rad];
+    // ---- center: white HEXAGON (6 vertices) ----
+    const H6=6;
+    const hexR=r*.16;
+    const hexAngles=Array.from({length:H6},(_,i)=>TAU/H6*i);  // 0°,60°,120°,180°,240°,300°
+    const H=hexAngles.map(a=>({x:x+Math.cos(a)*hexR, y:y+Math.sin(a)*hexR}));
 
-    // ---- ring radii ----
-    const r0=r*.22;     // center pentagon vertices
-    const r1=r*.50;     // mid ring (hexagon vertices)
-    const r2=r*.72;     // outer pentagon tips
+    // ---- 3 black PENTAGONS at alternating hex vertices (0°,120°,240°) ----
+    const pentAngles=[0,2,4].map(i=>hexAngles[i]);
+    const pentDist=r*.44;    // distance from center
+    const pentR=r*.13;       // pentagon size
 
-    // angular spread of hexagon vertices around each radial
-    const spread=seg*.34;
+    const P=pentAngles.map(a=>{
+      const cx=x+Math.cos(a)*pentDist, cy=y+Math.sin(a)*pentDist;
+      return Array.from({length:5},(_,k)=>({
+        x:cx+Math.cos(a+Math.PI+TAU/5*k)*pentR,
+        y:cy+Math.sin(a+Math.PI+TAU/5*k)*pentR,
+      }));
+    });
 
-    // ---- compute all vertices ----
-    const base=Array.from({length:N},(_,i)=>-Math.PI/2+seg*i);   // start from top
+    // seam thickness
+    const sw=Math.max(.7, r*.035);
 
-    // R0[i] = center pentagon vertex i
-    const R0=base.map(a=>P(a,r0));
-
-    // R1[2*i]=left-of-radial, R1[2*i+1]=right-of-radial (ring 1)
-    const R1=[];
-    for(let i=0;i<N;i++){
-      const a=base[i];
-      R1.push(P(a-spread,r1));   // 2*i: left of radial i
-      R1.push(P(a+spread,r1));   // 2*i+1: right of radial i
-    }
-
-    // R2[i] = outer pentagon tip at angle base[i]
-    const R2=base.map(a=>P(a,r2));
-
-    // ---- build seam network (all lines in one Path2D) ----
-    const S=new Path2D();
-
-    // center pentagon
-    S.moveTo(R0[0][0],R0[0][1]);
-    for(let i=1;i<N;i++)S.lineTo(R0[i][0],R0[i][1]);
-    S.closePath();
-
-    // radial lines: R0 → junction between R1-pair → R2
-    for(let i=0;i<N;i++){
-      const jx=(R1[2*i][0]+R1[2*i+1][0])/2;   // midpoint between R1 pair
-      const jy=(R1[2*i][1]+R1[2*i+1][1])/2;
-      S.moveTo(R0[i][0],R0[i][1]);S.lineTo(jx,jy);S.lineTo(R2[i][0],R2[i][1]);
-    }
-
-    // R1 connections forming hexagon edges
-    // Left-of-radial-i connects to right-of-radial-(i-1)
-    for(let i=0;i<N;i++){
-      const iPrev=(i-1+N)%N;
-      S.moveTo(R1[2*i][0],R1[2*i][1]);       // left of radial i
-      S.lineTo(R1[2*iPrev+1][0],R1[2*iPrev+1][1]); // right of radial i-1
-    }
-
-    // R1 to R2 connections (outer pentagon edges)
-    for(let i=0;i<N;i++){
-      const iPrev=(i-1+N)%N;
-      // right-of-radial-iPrev to R2[i]
-      S.moveTo(R1[2*iPrev+1][0],R1[2*iPrev+1][1]);
-      S.lineTo(R2[i][0],R2[i][1]);
-      // R2[i] to left-of-radial-i
-      S.lineTo(R1[2*i][0],R1[2*i][1]);
-    }
-
-    // ---- draw seam shadows (behind pentagons for depth) ----
-    ctx.save();
-    ctx.lineJoin='round';ctx.lineCap='round';
-    const shadowW=Math.max(1.8,r*.075);
-    ctx.strokeStyle='rgba(0,0,0,.28)';ctx.lineWidth=shadowW;
-    ctx.stroke(S);
-
-    // ---- fill black pentagons ----
+    // ---- fill black pentagons first ----
     ctx.fillStyle='#111';
-
-    // center pentagon
-    ctx.beginPath();ctx.moveTo(R0[0][0],R0[0][1]);
-    for(let i=1;i<N;i++)ctx.lineTo(R0[i][0],R0[i][1]);
-    ctx.closePath();ctx.fill();
-
-    // 5 perimeter pentagons — formed by R1 vertices and R2 tip
-    for(let i=0;i<N;i++){
-      const iPrev=(i-1+N)%N;
-      const jx=(R1[2*i][0]+R1[2*i+1][0])/2;
-      const jy=(R1[2*i][1]+R1[2*i+1][1])/2;
-      ctx.beginPath();
-      ctx.moveTo(R1[2*iPrev+1][0],R1[2*iPrev+1][1]);   // right of i-1
-      ctx.lineTo(R2[i][0],R2[i][1]);                    // outer tip
-      ctx.lineTo(R1[2*i][0],R1[2*i][1]);                // left of i
-      ctx.lineTo(jx,jy);                                 // junction on radial i
-      ctx.closePath();
-      ctx.fill();
+    for(const p of P){
+      ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);
+      for(let k=1;k<5;k++)ctx.lineTo(p[k].x,p[k].y);
+      ctx.closePath();ctx.fill();
     }
 
-    // ---- bold seam lines on top ----
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=Math.max(1.1,r*.055);
-    ctx.stroke(S);
-    ctx.restore();
+    // ---- seam network (all thin dark lines) ----
+    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=sw;ctx.lineJoin='round';ctx.lineCap='round';
 
-    // ---- ball rim ----
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=Math.max(1.2,r*.068);
+    // center hexagon outline
+    ctx.beginPath();ctx.moveTo(H[0].x,H[0].y);
+    for(let i=1;i<H6;i++)ctx.lineTo(H[i].x,H[i].y);
+    ctx.closePath();ctx.stroke();
+
+    // pentagon-to-hexagon seams: inward vertex of each pentagon to its hex vertex
+    for(let pi=0;pi<3;pi++){
+      const hi=pi*2;  // hex indices 0,2,4
+      ctx.beginPath();ctx.moveTo(H[hi].x,H[hi].y);
+      ctx.lineTo(P[pi][0].x,P[pi][0].y);ctx.stroke();
+    }
+
+    // pentagon edges
+    for(const p of P){
+      ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);
+      for(let k=1;k<5;k++)ctx.lineTo(p[k].x,p[k].y);
+      ctx.closePath();ctx.stroke();
+    }
+
+    // connect adjacent pentagons: P[i].vertex[2] to P[(i+1)%3].vertex[3]
+    for(let i=0;i<3;i++){
+      const j=(i+1)%3;
+      ctx.beginPath();ctx.moveTo(P[i][2].x,P[i][2].y);
+      ctx.lineTo(P[j][3].x,P[j][3].y);ctx.stroke();
+    }
+
+    // outward seams from non-pentagon hex vertices (60°,180°,300°)
+    for(let hi=1;hi<H6;hi+=2){  // indices 1,3,5
+      const a=hexAngles[hi];
+      const ex=x+Math.cos(a)*r*.76, ey=y+Math.sin(a)*r*.76;
+      ctx.beginPath();ctx.moveTo(H[hi].x,H[hi].y);
+      ctx.lineTo(ex,ey);ctx.stroke();
+    }
+
+    // ball rim — thin, dark
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=Math.max(.8, r*.04);
     ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
-
-    // inner highlight
-    ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=Math.max(.5,r*.026);
-    ctx.beginPath();ctx.arc(x,y,r-Math.max(.5,r*.028),0,TAU);ctx.stroke();
   },
 
   // -- tennis: golden yellow (#dcd214), two crossing white seam curves, fuzzy edge
@@ -1166,17 +1218,19 @@ class MenuController {
     this.menuSkins=document.getElementById('menuSkins');
     this.menuTheme=document.getElementById('menuTheme');this.menuPaddle=document.getElementById('menuPaddle');
     this.menuBall=document.getElementById('menuBall');
+    this.menuBallEditor=document.getElementById('menuBallEditor');
+    this._editor={editingId:null,pendingSrc:null};
     this.pauseOverlay=document.getElementById('pauseOverlay');
     this.scoreboard=document.getElementById('scoreboard');this.canvas=document.getElementById('gameCanvas');
     this.controlsBar=document.getElementById('controlsBar');this.themeSwitcher=document.getElementById('themeSwitcher');
     this._buildThemePresets();this._buildPaddleStyleButtons();this._buildBallSkinButtons();this._buildThemeDots();
-    this._bindClicks();this._bindSliders();this._bindColorPickers();this._syncUI();
+    this._bindClicks();this._bindSliders();this._bindColorPickers();this._bindBallEditor();this._syncUI();
   }
 
   showMainMenu(){
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
-    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));
+    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor].forEach(m=>m.classList.add('hidden'));
     this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
@@ -1211,6 +1265,11 @@ class MenuController {
     for(const{key,label}of BALL_SKINS){
       const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;
       b.addEventListener('click',()=>this._onBallSkinClick(key));g.appendChild(b);
+    }
+    // custom balls
+    for(const cb of CustomBallRegistry.list()){
+      const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=cb.id;b.textContent=cb.name;
+      b.addEventListener('click',()=>this._onBallSkinClick(cb.id));g.appendChild(b);
     }
   }
   _buildThemeDots(){
@@ -1257,6 +1316,12 @@ class MenuController {
       case'resume':this.resumeGame();break;
       case'restart':this.pauseOverlay.classList.add('hidden');this.game.restart();break;
       case'quit':this.backToMenu();break;
+      // --- ball texture editor ---
+      case'ball-editor':this._openBallEditor();break;
+      case'ball-add-new':this._ballEditorShowForm('add');break;
+      case'ball-save':this._ballEditorSave();break;
+      case'ball-cancel':this._ballEditorHideForm();break;
+      case'back-to-ball':this._showSub(this.menuBall);this._syncBallPage();break;
     }
   }
 
@@ -1297,6 +1362,7 @@ class MenuController {
     document.getElementById('paddleHeightSlider').value=settings.paddleHeight;document.getElementById('paddleHeightVal').textContent=settings.paddleHeight;
   }
   _syncBallPage(){
+    this._buildBallSkinButtons(); // refresh to include new/removed custom balls
     const t=this.game.getTheme();
     document.querySelectorAll('#ballSkinGrid .ball-skin-btn').forEach(b=>b.classList.toggle('active',b.dataset.skin===settings.ballSkin));
     document.getElementById('ballColor').value=settings.customBall||t.ball;
@@ -1312,7 +1378,130 @@ class MenuController {
     BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,c,settings.ballSkin,Date.now());
   }
 
-  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
+  /* ---- ball texture editor ---- */
+
+  _bindBallEditor(){
+    const fi=document.getElementById('editorFile');
+    fi.addEventListener('change',()=>{
+      const file=fi.files[0];
+      if(!file)return;
+      document.getElementById('editorFileName').textContent=file.name;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        this._editor.pendingSrc=reader.result;
+        this._renderEditorPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  _openBallEditor(){
+    this._editor={pendingSrc:null,editingId:null};
+    this._renderBallEditorList();
+    this._ballEditorHideForm(false);
+    this._showSub(this.menuBallEditor);
+  }
+
+  _renderBallEditorList(){
+    const el=document.getElementById('customBallList');
+    const balls=CustomBallRegistry.list();
+    if(balls.length===0){
+      el.innerHTML='<div class="custom-ball-empty">NO CUSTOM TEXTURES YET</div>';
+      return;
+    }
+    el.innerHTML=balls.map(b=>{
+      return `<div class="custom-ball-row">
+        <img class="cb-thumb" src="${b.src}" alt="${b.name}">
+        <span class="cb-name">${b.name}</span>
+        <button class="menu-btn tiny" data-action="ball-edit" data-ball-id="${b.id}">EDIT</button>
+        <button class="menu-btn tiny" data-action="ball-delete" data-ball-id="${b.id}">DEL</button>
+      </div>`;
+    }).join('');
+    // bind row buttons
+    el.querySelectorAll('[data-action="ball-edit"]').forEach(b=>{
+      b.addEventListener('click',()=>this._ballEditorShowForm('edit',b.dataset.ballId));
+    });
+    el.querySelectorAll('[data-action="ball-delete"]').forEach(b=>{
+      b.addEventListener('click',()=>this._ballEditorDelete(b.dataset.ballId));
+    });
+  }
+
+  _ballEditorShowForm(mode,ballId){
+    this._editor.editingId=mode==='edit'?ballId:null;
+    const f=document.getElementById('ballEditorForm');
+    f.classList.remove('hidden');
+    document.getElementById('editorName').value='';
+    document.getElementById('editorFileName').textContent='no file';
+    document.getElementById('editorFile').value='';
+    document.getElementById('editorShading').checked=false;
+    this._editor.pendingSrc=null;
+    const pv=document.getElementById('editorPreview');
+    pv.getContext('2d').clearRect(0,0,pv.width,pv.height);
+
+    if(mode==='edit'&&ballId){
+      const b=CustomBallRegistry.get(ballId);
+      if(b){
+        document.getElementById('editorName').value=b.name;
+        this._editor.pendingSrc=b.src;
+        document.getElementById('editorFileName').textContent='(current)';
+        if(b.shading)document.getElementById('editorShading').checked=true;
+        this._renderEditorPreview(b.src);
+      }
+    }
+  }
+
+  _ballEditorHideForm(clearEditor=true){
+    document.getElementById('ballEditorForm').classList.add('hidden');
+    if(clearEditor)this._editor={pendingSrc:null,editingId:null};
+  }
+
+  _ballEditorSave(){
+    const name=document.getElementById('editorName').value.trim();
+    if(!name){alert('ENTER A NAME');return;}
+    const src=this._editor.pendingSrc;
+    if(!src){alert('CHOOSE AN IMAGE');return;}
+    const shading=document.getElementById('editorShading').checked;
+
+    if(this._editor.editingId){
+      CustomBallRegistry.update(this._editor.editingId,name,src,shading);
+    }else{
+      CustomBallRegistry.add(name,src,shading);
+    }
+    this._renderBallEditorList();
+    this._ballEditorHideForm(true);
+  }
+
+  _ballEditorDelete(id){
+    if(!confirm('DELETE THIS TEXTURE?'))return;
+    CustomBallRegistry.remove(id);
+    this._renderBallEditorList();
+  }
+
+  _renderEditorPreview(src){
+    const cv=document.getElementById('editorPreview');
+    if(!cv||cv.classList.contains('hidden'))return;
+    const ctx=cv.getContext('2d'),s=cv.width;
+    ctx.clearRect(0,0,s,s);
+    const img=new Image();
+    img.onload=()=>{
+      // draw clipped to circle
+      ctx.save();
+      ctx.beginPath();ctx.arc(s/2,s/2,s/2,0,Math.PI*2);ctx.clip();
+      ctx.drawImage(img,0,0,s,s);
+      const shading=document.getElementById('editorShading').checked;
+      if(shading){
+        const sg=ctx.createRadialGradient(s*.35,s*.33,2,s/2,s/2,s/2);
+        sg.addColorStop(0,'rgba(255,255,255,0)');
+        sg.addColorStop(.5,'rgba(255,255,255,0)');
+        sg.addColorStop(1,'rgba(0,0,0,.35)');
+        ctx.fillStyle=sg;ctx.fillRect(0,0,s,s);
+      }
+      ctx.restore();
+    };
+    img.src=src;
+  }
+
+  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
     document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':'POWER UPS';

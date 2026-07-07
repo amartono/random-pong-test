@@ -232,6 +232,237 @@ const CustomBallRegistry = (()=>{
 })();
 
 /* ------------------------------------------------------------------ */
+/*  BALL PAINT EDITOR — full drawing canvas for custom ball textures   */
+/* ------------------------------------------------------------------ */
+
+function createBallPaintEditor(){
+  const canvas=document.getElementById('paintCanvas');
+  if(!canvas)return null;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const swatchesEl=document.getElementById('paintPalette');
+  const sizeSlider=document.getElementById('paintSize');
+  const sizeVal=document.getElementById('paintSizeVal');
+  const colorInput=document.getElementById('paintColor');
+  const loadGrid=document.getElementById('paintLoadGrid');
+
+  // state
+  let tool='brush';
+  let drawing=false;
+  let brushSize=parseInt(sizeSlider.value)||8;
+  let color=colorInput.value||'#ff4444';
+  let undoStack=[];
+  let startX=0,startY=0;
+  let snap=null;  // ImageData snapshot for shape previews
+
+  // ---- palette ----
+  const PALETTE=[
+    '#ff4444','#ff8800','#ffdd00','#44ff44','#00cccc','#4488ff','#8844ff','#ff44ff',
+    '#ffffff','#cccccc','#888888','#444444','#111111','#000000',
+    '#ffaaaa','#ffcc88','#ffff88','#aaffaa','#88dddd','#aaccff','#ccaaff','#ffaaff',
+  ];
+  PALETTE.forEach(c=>{
+    const s=document.createElement('span');s.className='palette-swatch';
+    s.style.backgroundColor=c;s.title=c;
+    s.addEventListener('click',()=>{color=c;colorInput.value=c;});
+    swatchesEl.appendChild(s);
+  });
+
+  // ---- tool buttons ----
+  document.querySelectorAll('#paintTools .paint-tool').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('#paintTools .paint-tool').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');tool=b.dataset.tool;
+    });
+  });
+
+  // ---- brush size ----
+  sizeSlider.addEventListener('input',()=>{
+    brushSize=parseInt(sizeSlider.value);sizeVal.textContent=brushSize;
+  });
+  colorInput.addEventListener('input',()=>{color=colorInput.value;});  return {canvas,ctx,tool,undoStack,loadGrid,
+    /** clear canvas + reset undo */
+    clear(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      undoStack=[];this._pushUndo();
+    },
+
+    _pushUndo(){
+      undoStack.push(ctx.getImageData(0,0,canvas.width,canvas.height));
+      if(undoStack.length>20)undoStack.shift();
+    },
+
+    undo(){
+      if(undoStack.length===0)return;
+      const prev=undoStack.pop();
+      ctx.putImageData(prev,0,0);
+    },
+
+    /** Load a built-in or custom ball onto the canvas as starting image */
+    loadBall(skinKey){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(CustomBallRegistry.isCustom(skinKey)){
+        const img=CustomBallRegistry.image(skinKey);
+        if(img&&img.complete){ctx.drawImage(img,0,0,canvas.width,canvas.height);}
+      }else{
+        // render procedural ball onto canvas
+        BallRenderer.draw(ctx,canvas.width/2,canvas.height/2,canvas.width*.9,'#ffffff',skinKey,0);
+      }
+      undoStack=[];
+      this._pushUndo();
+    },
+
+    /** Get the canvas as a data URL */
+    getDataURL(){return canvas.toDataURL('image/png');},
+
+    // ---- drawing event handlers ----
+    onPointerDown(ex,ey){
+      const rect=canvas.getBoundingClientRect();
+      const scaleX=canvas.width/rect.width;
+      const scaleY=canvas.height/rect.height;
+      const x=(ex-rect.left)*scaleX;
+      const y=(ey-rect.top)*scaleY;
+      drawing=true;startX=x;startY=y;
+
+      switch(tool){
+        case'brush':case'eraser':
+          this._pushUndo();this._drawDot(x,y);break;
+        case'fill':
+          this._pushUndo();this._floodFill(Math.round(x),Math.round(y));break;
+        case'eyedropper':
+          this._pickColor(Math.round(x),Math.round(y));break;
+        case'line':case'rect':case'circle':
+          snap=ctx.getImageData(0,0,canvas.width,canvas.height);break;
+        default:break;
+      }
+    },
+
+    onPointerMove(ex,ey){
+      if(!drawing)return;
+      const rect=canvas.getBoundingClientRect();
+      const scaleX=canvas.width/rect.width;
+      const scaleY=canvas.height/rect.height;
+      const x=(ex-rect.left)*scaleX;
+      const y=(ey-rect.top)*scaleY;
+
+      switch(tool){
+        case'brush':this._drawDot(x,y);break;
+        case'eraser':
+          ctx.save();ctx.globalCompositeOperation='destination-out';this._drawDot(x,y);ctx.restore();break;
+        case'line':this._previewLine(x,y);break;
+        case'rect':this._previewRect(x,y);break;
+        case'circle':this._previewCircle(x,y);break;
+      }
+    },
+
+    onPointerUp(ex,ey){
+      if(!drawing)return;
+      const rect=canvas.getBoundingClientRect();
+      const scaleX=canvas.width/rect.width;
+      const scaleY=canvas.height/rect.height;
+      const x=(ex-rect.left)*scaleX;
+      const y=(ey-rect.top)*scaleY;
+
+      switch(tool){
+        case'line':case'rect':case'circle':
+          this._pushUndo();this._commitShape(x,y);break;
+      }
+      drawing=false;snap=null;
+    },
+
+    // -- internals --
+    _drawDot(x,y){
+      ctx.fillStyle=tool==='eraser'?'rgba(0,0,0,0)':color;
+      ctx.beginPath();ctx.arc(x,y,brushSize/2,0,Math.PI*2);ctx.fill();
+    },
+    _previewLine(x,y){
+      if(!snap)return;
+      ctx.putImageData(snap,0,0);
+      ctx.strokeStyle=color;ctx.lineWidth=brushSize;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(startX,startY);ctx.lineTo(x,y);ctx.stroke();
+    },
+    _previewRect(x,y){
+      if(!snap)return;
+      ctx.putImageData(snap,0,0);
+      ctx.strokeStyle=color;ctx.lineWidth=brushSize;ctx.lineJoin='round';
+      ctx.strokeRect(startX,startY,x-startX,y-startY);
+    },
+    _previewCircle(x,y){
+      if(!snap)return;
+      ctx.putImageData(snap,0,0);
+      const cx=(startX+x)/2,cy=(startY+y)/2;
+      const rx=Math.abs(x-startX)/2,ry=Math.abs(y-startY)/2;
+      ctx.strokeStyle=color;ctx.lineWidth=brushSize;
+      ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+    },
+    _commitShape(x,y){
+      switch(tool){
+        case'line':
+          ctx.strokeStyle=color;ctx.lineWidth=brushSize;ctx.lineCap='round';
+          ctx.beginPath();ctx.moveTo(startX,startY);ctx.lineTo(x,y);ctx.stroke();break;
+        case'rect':
+          ctx.strokeStyle=color;ctx.lineWidth=brushSize;ctx.lineJoin='round';
+          ctx.strokeRect(startX,startY,x-startX,y-startY);break;
+        case'circle':{
+          const cx=(startX+x)/2,cy=(startY+y)/2;
+          const rx=Math.abs(x-startX)/2,ry=Math.abs(y-startY)/2;
+          ctx.strokeStyle=color;ctx.lineWidth=brushSize;
+          ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();break;
+        }
+      }
+    },
+    _floodFill(sx,sy){
+      const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+      const data=imgData.data,w=canvas.width,h=canvas.height;
+      const idx=(sy*w+sx)*4;
+      const targetR=data[idx],targetG=data[idx+1],targetB=data[idx+2],targetA=data[idx+3];
+      const [fillR,fillG,fillB]=this._hexToRgb(color);
+      if(targetR===fillR&&targetG===fillG&&targetB===fillB)return;
+
+      const stack=[[sx,sy]];
+      const visited=new Uint8Array(w*h);
+      const tol=32;
+      while(stack.length){
+        const [px,py]=stack.pop();
+        const pi=py*w+px;
+        if(visited[pi])continue;visited[pi]=1;
+        const i=pi*4;
+        if(Math.abs(data[i]-targetR)>tol||Math.abs(data[i+1]-targetG)>tol||Math.abs(data[i+2]-targetB)>tol||Math.abs(data[i+3]-targetA)>tol)continue;
+        data[i]=fillR;data[i+1]=fillG;data[i+2]=fillB;data[i+3]=255;
+        if(px>0)stack.push([px-1,py]);
+        if(px<w-1)stack.push([px+1,py]);
+        if(py>0)stack.push([px,py-1]);
+        if(py<h-1)stack.push([px,py+1]);
+      }
+      ctx.putImageData(imgData,0,0);
+    },
+    _pickColor(x,y){
+      const px=ctx.getImageData(x,y,1,1).data;
+      color='#'+[px[0],px[1],px[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+      colorInput.value=color;
+    },
+    _hexToRgb(hex){const h=hex.replace('#','');return [parseInt(h.substring(0,2),16),parseInt(h.substring(2,4),16),parseInt(h.substring(4,6),16)];},
+
+    /** Build LOAD BALL popup: snapshots of all ball skins */
+    buildLoadGrid(){
+      loadGrid.innerHTML='';
+      const all=[];
+      for(const s of BALL_SKINS)all.push(s);
+      for(const c of CustomBallRegistry.list())all.push({key:c.id,label:c.name});
+      all.forEach(skin=>{
+        const div=document.createElement('div');div.className='paint-load-item';
+        const thumb=document.createElement('canvas');thumb.width=36;thumb.height=36;
+        const tctx=thumb.getContext('2d');
+        BallRenderer.draw(tctx,18,18,32,'#ffffff',skin.key,0);
+        const label=document.createElement('span');label.textContent=skin.label;
+        div.appendChild(thumb);div.appendChild(label);
+        div.addEventListener('click',()=>{this.loadBall(skin.key);loadGrid.classList.add('hidden');});
+        loadGrid.appendChild(div);
+      });
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /*  BALL RENDERER                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -1219,7 +1450,9 @@ class MenuController {
     this.menuTheme=document.getElementById('menuTheme');this.menuPaddle=document.getElementById('menuPaddle');
     this.menuBall=document.getElementById('menuBall');
     this.menuBallEditor=document.getElementById('menuBallEditor');
+    this.menuBallPaint=document.getElementById('menuBallPaint');
     this._editor={editingId:null,pendingSrc:null};
+    this.paintEditor=null;
     this.pauseOverlay=document.getElementById('pauseOverlay');
     this.scoreboard=document.getElementById('scoreboard');this.canvas=document.getElementById('gameCanvas');
     this.controlsBar=document.getElementById('controlsBar');this.themeSwitcher=document.getElementById('themeSwitcher');
@@ -1230,7 +1463,7 @@ class MenuController {
   showMainMenu(){
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
-    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor].forEach(m=>m.classList.add('hidden'));
+    [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor,this.menuBallPaint].forEach(m=>m.classList.add('hidden'));
     this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
@@ -1322,6 +1555,13 @@ class MenuController {
       case'ball-save':this._ballEditorSave();break;
       case'ball-cancel':this._ballEditorHideForm();break;
       case'back-to-ball':this._showSub(this.menuBall);this._syncBallPage();break;
+      // --- paint editor ---
+      case'ball-draw-new':this._openPaintEditor(null);break;
+      case'paint-undo':this.paintEditor&&this.paintEditor.undo();break;
+      case'paint-clear':this.paintEditor&&this.paintEditor.clear();break;
+      case'paint-load':this._togglePaintLoadGrid();break;
+      case'paint-save':this._paintEditorSave();break;
+      case'paint-cancel':this._openBallEditor();break;
     }
   }
 
@@ -1378,6 +1618,66 @@ class MenuController {
     BallRenderer.draw(ctx,s/2,s/2,settings.ballSize*1.6,c,settings.ballSkin,Date.now());
   }
 
+  /* ---- ball paint editor ---- */
+
+  _openPaintEditor(editingId){
+    // lazy-init editor + pointer bindings once
+    if(!this.paintEditor){
+      this.paintEditor=createBallPaintEditor();
+      const cv=this.paintEditor.canvas;
+      cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);this.paintEditor.onPointerDown(e.clientX,e.clientY);});
+      cv.addEventListener('pointermove',e=>this.paintEditor.onPointerMove(e.clientX,e.clientY));
+      cv.addEventListener('pointerup',e=>this.paintEditor.onPointerUp(e.clientX,e.clientY));
+      cv.addEventListener('pointerleave',e=>this.paintEditor.onPointerUp(e.clientX,e.clientY));
+    }
+    this._paintEditingId=editingId||null;
+    document.getElementById('paintLoadGrid').classList.add('hidden');
+
+    if(editingId){
+      const b=CustomBallRegistry.get(editingId);
+      document.getElementById('paintName').value=b?b.name:'';
+      // load existing image onto canvas
+      if(b){
+        const img=new Image();
+        img.onload=()=>{
+          const pc=this.paintEditor.canvas,pctx=pc.getContext('2d');
+          pctx.clearRect(0,0,pc.width,pc.height);
+          pctx.drawImage(img,0,0,pc.width,pc.height);
+          this.paintEditor._pushUndo();
+        };
+        img.src=b.src;
+      }else{
+        this.paintEditor.clear();
+      }
+    }else{
+      document.getElementById('paintName').value='';
+      this.paintEditor.clear();
+    }
+    this._showSub(this.menuBallPaint);
+  }
+
+  _togglePaintLoadGrid(){
+    const g=document.getElementById('paintLoadGrid');
+    if(g.classList.contains('hidden')){
+      this.paintEditor.buildLoadGrid();
+      g.classList.remove('hidden');
+    }else{
+      g.classList.add('hidden');
+    }
+  }
+
+  _paintEditorSave(){
+    const name=document.getElementById('paintName').value.trim();
+    if(!name){alert('ENTER A NAME');return;}
+    const src=this.paintEditor.getDataURL();
+    if(this._paintEditingId){
+      CustomBallRegistry.update(this._paintEditingId,name,src,false);
+    }else{
+      CustomBallRegistry.add(name,src,false);
+    }
+    this._openBallEditor();
+  }
+
   /* ---- ball texture editor ---- */
 
   _bindBallEditor(){
@@ -1419,7 +1719,7 @@ class MenuController {
     }).join('');
     // bind row buttons
     el.querySelectorAll('[data-action="ball-edit"]').forEach(b=>{
-      b.addEventListener('click',()=>this._ballEditorShowForm('edit',b.dataset.ballId));
+      b.addEventListener('click',()=>this._openPaintEditor(b.dataset.ballId));
     });
     el.querySelectorAll('[data-action="ball-delete"]').forEach(b=>{
       b.addEventListener('click',()=>this._ballEditorDelete(b.dataset.ballId));
@@ -1501,7 +1801,7 @@ class MenuController {
     img.src=src;
   }
 
-  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
+  _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor,this.menuBallPaint].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
     document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':'POWER UPS';

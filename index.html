@@ -85,7 +85,8 @@
           <h2 class="menu-subtitle">BALL EDITOR</h2>
           <p class="menu-label">YOUR CUSTOM TEXTURES</p>
           <div class="custom-ball-list" id="customBallList"></div>
-          <button class="menu-btn small" data-action="ball-add-new">+ ADD NEW TEXTURE</button>
+          <button class="menu-btn small" data-action="ball-draw-new">✎ DRAW NEW TEXTURE</button>
+          <button class="menu-btn small" data-action="ball-add-new">+ UPLOAD IMAGE</button>
 
           <!-- Add/Edit form (hidden until adding/editing) -->
           <div class="ball-editor-form hidden" id="ballEditorForm">
@@ -100,6 +101,41 @@
           </div>
 
           <button class="menu-btn back-btn" data-action="back-to-ball">BACK</button>
+        </div>
+
+        <!-- Ball Paint Editor -->
+        <div class="menu-screen hidden" id="menuBallPaint">
+          <h2 class="menu-subtitle">DRAW TEXTURE</h2>
+          <div class="paint-canvas-wrap">
+            <canvas id="paintCanvas" width="256" height="256" class="paint-canvas"></canvas>
+          </div>
+          <div class="paint-tools" id="paintTools">
+            <button class="paint-tool active" data-tool="brush" title="Brush">✏</button>
+            <button class="paint-tool" data-tool="line" title="Line">╱</button>
+            <button class="paint-tool" data-tool="rect" title="Rectangle">▭</button>
+            <button class="paint-tool" data-tool="circle" title="Circle">◯</button>
+            <button class="paint-tool" data-tool="fill" title="Fill Bucket">▣</button>
+            <button class="paint-tool" data-tool="eraser" title="Eraser">⌫</button>
+            <button class="paint-tool" data-tool="eyedropper" title="Pick Color">⊙</button>
+          </div>
+          <div class="paint-palette" id="paintPalette"></div>
+          <div class="paint-row">
+            <span class="menu-label">COLOR</span>
+            <input type="color" id="paintColor" value="#ff4444">
+            <span class="menu-label">SIZE: <span id="paintSizeVal">8</span></span>
+          </div>
+          <input type="range" id="paintSize" min="1" max="48" value="8" class="style-slider">
+          <div class="paint-row">
+            <button class="menu-btn tiny" data-action="paint-undo">UNDO</button>
+            <button class="menu-btn tiny" data-action="paint-clear">CLEAR</button>
+            <button class="menu-btn tiny" data-action="paint-load">LOAD BALL</button>
+          </div>
+          <div class="paint-load-grid hidden" id="paintLoadGrid"></div>
+          <div class="skin-section"><p class="menu-label">NAME</p><input type="text" id="paintName" class="text-input" maxlength="12" placeholder="MY BALL"></div>
+          <div class="editor-btn-row">
+            <button class="menu-btn tiny" data-action="paint-save">SAVE</button>
+            <button class="menu-btn tiny" data-action="paint-cancel">CANCEL</button>
+          </div>
         </div>
       </div>
 

@@ -280,15 +280,13 @@ function createBallPaintEditor(){
   const sizeSlider=document.getElementById('paintSize');
   const sizeVal=document.getElementById('paintSizeVal');
   const colorInput=document.getElementById('paintColor');
-  const color2Input=document.getElementById('paintColor2');
   const loadGrid=document.getElementById('paintLoadGrid');
 
   // ---- state ----
   let tool='select';
   let color=colorInput.value||'#ff4444';
-  let color2=(color2Input&&color2Input.value)||'#4488ff';
   let width=parseInt(sizeSlider.value)||8;
-  let fillMode=false, gradMode=false, mirrorX=false, mirrorY=false;
+  let fillMode=false, mirrorX=false, mirrorY=false;
 
   let objects=[];         // scene graph
   let bgColor=null;       // background fill color
@@ -328,15 +326,13 @@ function createBallPaintEditor(){
     b.addEventListener('click',()=>{
       const o=b.dataset.opt;
       if(o==='fill'){fillMode=!fillMode;b.classList.toggle('active',fillMode);}
-      else if(o==='gradient'){gradMode=!gradMode;b.classList.toggle('active',gradMode);}
       else if(o==='mirrorX'){mirrorX=!mirrorX;b.classList.toggle('active',mirrorX);}
       else if(o==='mirrorY'){mirrorY=!mirrorY;b.classList.toggle('active',mirrorY);}
     });
   });
 
   sizeSlider.addEventListener('input',()=>{width=parseInt(sizeSlider.value);sizeVal.textContent=width;if(selected){_pushUndo();selected.width=width;render();}});
-  colorInput.addEventListener('input',()=>{color=colorInput.value;if(selected){_pushUndo();selected.color=color;if(selected.grad)selected.grad.c1=color;render();}});
-  if(color2Input)color2Input.addEventListener('input',()=>{color2=color2Input.value;if(selected&&selected.grad){selected.grad.c2=color2;render();}});
+  colorInput.addEventListener('input',()=>{color=colorInput.value;if(selected){_pushUndo();selected.color=color;render();}});
 
   /* ================= geometry helpers ================= */
   function nid(){return 'o'+Math.random().toString(36).slice(2,9);}
@@ -399,24 +395,20 @@ function createBallPaintEditor(){
     if(o.pts.length===1)return Math.hypot(px-o.pts[0].x,py-o.pts[0].y)<tol;
     return false;
   }
-  function gradFor(o,bb){
-    const g=ctx.createLinearGradient(bb.x,bb.y,bb.x+bb.w,bb.y+bb.h);
-    g.addColorStop(0,o.grad.c1);g.addColorStop(1,o.grad.c2);return g;
-  }
 
   /* ================= drawing ================= */
   function drawObj(c,o){
     c.lineJoin='round';c.lineCap='round';
     if(o.kind==='ellipse'){
       c.beginPath();c.ellipse(o.cx,o.cy,Math.abs(o.rx),Math.abs(o.ry),0,0,Math.PI*2);
-      if(o.fill){c.fillStyle=o.grad?gradFor(o,objBBox(o)):o.color;c.fill();}
+      if(o.fill){c.fillStyle=o.color;c.fill();}
       else{c.strokeStyle=o.color;c.lineWidth=o.width;c.stroke();}
       return;
     }
     c.beginPath();c.moveTo(o.pts[0].x,o.pts[0].y);
     for(let i=1;i<o.pts.length;i++)c.lineTo(o.pts[i].x,o.pts[i].y);
     if(o.kind==='poly')c.closePath();
-    if(o.kind==='poly'&&o.fill){c.fillStyle=o.grad?gradFor(o,objBBox(o)):o.color;c.fill();}
+    if(o.kind==='poly'&&o.fill){c.fillStyle=o.color;c.fill();}
     else{c.strokeStyle=o.color;c.lineWidth=o.width;c.stroke();}
   }
   function handleRects(bb){
@@ -432,18 +424,57 @@ function createBallPaintEditor(){
     handleRects(bb).forEach(h=>ctx.fillRect(h.x,h.y,h.w,h.h));
     ctx.restore();
   }
+  // composite the whole scene (no selection handles) into any 2d context
+  function composite(c){
+    c.clearRect(0,0,W,H);
+    if(bgColor){c.fillStyle=bgColor;c.fillRect(0,0,W,H);}
+    if(bgImage)c.drawImage(bgImage,0,0,W,H);
+    for(const o of objects)drawObj(c,o);
+    if(tempObj)drawObj(c,tempObj);
+  }
   function render(showHandles=true){
-    ctx.clearRect(0,0,W,H);
-    if(bgColor){ctx.fillStyle=bgColor;ctx.fillRect(0,0,W,H);}
-    if(bgImage)ctx.drawImage(bgImage,0,0,W,H);
-    for(const o of objects)drawObj(ctx,o);
-    if(tempObj)drawObj(ctx,tempObj);
+    composite(ctx);
     if(showHandles&&selected&&tool==='select')drawSelection(selected);
+  }
+  // flatten everything into the bgImage raster (used before smudge/blend)
+  function bakeScene(){
+    const off=document.createElement('canvas');off.width=W;off.height=H;
+    composite(off.getContext('2d'));
+    bgImage=off;bgColor=null;objects=[];selected=null;
+  }
+  // local smudge/blend: soften pixels under the brush so bordering colors blend into a gradient
+  function smudge(cx,cy,r){
+    if(!bgImage)return;
+    const octx=bgImage.getContext('2d');
+    const full=octx.getImageData(0,0,W,H);
+    const src=new Uint8ClampedArray(full.data);
+    const d=full.data;
+    const k=Math.max(1,Math.round(r/6));   // kernel radius scales with brush
+    const r2=r*r;
+    const x0=Math.max(0,Math.floor(cx-r)),x1=Math.min(W,Math.ceil(cx+r));
+    const y0=Math.max(0,Math.floor(cy-r)),y1=Math.min(H,Math.ceil(cy+r));
+    for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
+      const dx=x-cx,dy=y-cy,dd=dx*dx+dy*dy;if(dd>r2)continue;
+      let R=0,G=0,B=0,A=0,n=0;
+      for(let ky=-k;ky<=k;ky++)for(let kx=-k;kx<=k;kx++){
+        const nx=x+kx,ny=y+ky;if(nx<0||ny<0||nx>=W||ny>=H)continue;
+        const j=(ny*W+nx)*4;R+=src[j];G+=src[j+1];B+=src[j+2];A+=src[j+3];n++;
+      }
+      const t=1-Math.sqrt(dd)/r;          // stronger at brush center
+      const bl=0.85*t;                     // blend amount
+      const i=(y*W+x)*4;
+      d[i]  =src[i]  *(1-bl)+(R/n)*bl;
+      d[i+1]=src[i+1]*(1-bl)+(G/n)*bl;
+      d[i+2]=src[i+2]*(1-bl)+(B/n)*bl;
+      d[i+3]=src[i+3]*(1-bl)+(A/n)*bl;
+    }
+    octx.putImageData(full,0,0);
   }
 
   /* ================= undo ================= */
+  function cloneCanvas(c){const o=document.createElement('canvas');o.width=W;o.height=H;o.getContext('2d').drawImage(c,0,0);return o;}
   function _pushUndo(){
-    undoStack.push({objs:JSON.stringify(objects),bgColor});
+    undoStack.push({objs:JSON.stringify(objects),bgColor,bg:bgImage?cloneCanvas(bgImage):null});
     if(undoStack.length>30)undoStack.shift();
   }
 
@@ -452,7 +483,7 @@ function createBallPaintEditor(){
     const r=canvas.getBoundingClientRect();
     return{x:(ex-r.left)*(W/r.width), y:(ey-r.top)*(H/r.height)};
   }
-  function shapeOpts(){return{color,width,fill:fillMode,grad:(fillMode&&gradMode)?{c1:color,c2:color2}:null};}
+  function shapeOpts(){return{color,width,fill:fillMode};}
   function commitObj(o){
     objects.push(o);
     if(mirrorX)objects.push(reflectObj(o,'x'));
@@ -470,7 +501,7 @@ function createBallPaintEditor(){
       // if only baseline remains, keep it; otherwise pop current and apply previous
       if(undoStack.length>1)undoStack.pop();
       const s=undoStack[undoStack.length-1];
-      objects=JSON.parse(s.objs);bgColor=s.bgColor;selected=null;render();
+      objects=JSON.parse(s.objs);bgColor=s.bgColor;bgImage=s.bg?cloneCanvas(s.bg):null;selected=null;render();
     },
     deleteSelected(){if(selected){_pushUndo();objects=objects.filter(o=>o!==selected);selected=null;render();}},
 
@@ -508,13 +539,15 @@ function createBallPaintEditor(){
         if(found){dragMode='move';_pushUndo();}
         render();return;
       }
-      if(tool==='eyedropper'){const d=ctx.getImageData(Math.round(p.x),Math.round(p.y),1,1).data;color='#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');colorInput.value=color;return;}
       if(tool==='fill'){
         _pushUndo();
         let hitOne=null;for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){hitOne=objects[i];break;}}
-        if(hitOne){hitOne.fill=true;hitOne.color=color;hitOne.grad=gradMode?{c1:color,c2:color2}:null;}
+        if(hitOne){hitOne.fill=true;hitOne.color=color;}
         else bgColor=color;
         render();return;
+      }
+      if(tool==='blend'){
+        _pushUndo();bakeScene();dragMode='blend';smudge(p.x,p.y,width*1.5);render();return;
       }
       if(tool==='eraser'){
         for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){_pushUndo();objects.splice(i,1);render();return;}}
@@ -525,9 +558,9 @@ function createBallPaintEditor(){
       const o=shapeOpts();
       if(tool==='brush')tempObj={id:nid(),kind:'path',pts:[{x:p.x,y:p.y}],color:o.color,width:o.width};
       else if(tool==='line')tempObj={id:nid(),kind:'path',pts:[{x:p.x,y:p.y},{x:p.x,y:p.y}],color:o.color,width:o.width};
-      else if(tool==='rect')tempObj={id:nid(),kind:'poly',pts:rectPts(p.x,p.y,0,0),color:o.color,width:o.width,fill:o.fill,grad:o.grad};
-      else if(tool==='pentagon')tempObj={id:nid(),kind:'poly',pts:pentPts(p.x,p.y,0),color:o.color,width:o.width,fill:o.fill,grad:o.grad};
-      else if(tool==='circle')tempObj={id:nid(),kind:'ellipse',cx:p.x,cy:p.y,rx:0,ry:0,color:o.color,width:o.width,fill:o.fill,grad:o.grad};
+      else if(tool==='rect')tempObj={id:nid(),kind:'poly',pts:rectPts(p.x,p.y,0,0),color:o.color,width:o.width,fill:o.fill};
+      else if(tool==='pentagon')tempObj={id:nid(),kind:'poly',pts:pentPts(p.x,p.y,0),color:o.color,width:o.width,fill:o.fill};
+      else if(tool==='circle')tempObj={id:nid(),kind:'ellipse',cx:p.x,cy:p.y,rx:0,ry:0,color:o.color,width:o.width,fill:o.fill};
       render();
     },
 
@@ -535,6 +568,12 @@ function createBallPaintEditor(){
       if(!dragMode)return;
       const p=toCanvas(ex,ey);
 
+      if(dragMode==='blend'){
+        // smudge along the drag path (interpolate to avoid gaps)
+        const r=width*1.5, steps=Math.max(1,Math.round(Math.hypot(p.x-lastX,p.y-lastY)/(r/2)));
+        for(let s=1;s<=steps;s++){const t=s/steps;smudge(lastX+(p.x-lastX)*t,lastY+(p.y-lastY)*t,r);}
+        lastX=p.x;lastY=p.y;render();return;
+      }
       if(dragMode==='move'&&selected){translateObj(selected,p.x-lastX,p.y-lastY);lastX=p.x;lastY=p.y;render();return;}
       if(dragMode==='resize'&&selected){
         const nb={x:rsBBox.x,y:rsBBox.y,w:rsBBox.w,h:rsBBox.h};

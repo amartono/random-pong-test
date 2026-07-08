@@ -692,6 +692,43 @@ input[type="color"]::-webkit-color-swatch {
   box-shadow: 0 0 6px var(--accent);
 }
 
+.paint-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+  align-items: center;
+  max-width: 320px;
+}
+
+.paint-opt {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  min-width: 30px; height: 26px;
+  padding: 0 6px;
+  color: var(--text);
+  background: transparent;
+  border: 2px solid var(--btn-border);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.paint-opt:hover { border-color: var(--accent); }
+
+.paint-opt.active {
+  border-color: var(--accent);
+  background: var(--btn-active-bg);
+  box-shadow: 0 0 6px var(--accent);
+  color: var(--accent);
+}
+
+#paintColor2 {
+  width: 30px; height: 26px;
+}
+
 .paint-palette {
   display: flex;
   flex-wrap: wrap;

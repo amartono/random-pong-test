@@ -275,20 +275,31 @@ function createBallPaintEditor(){
   const canvas=document.getElementById('paintCanvas');
   if(!canvas)return null;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const W=canvas.width,H=canvas.height;
   const swatchesEl=document.getElementById('paintPalette');
   const sizeSlider=document.getElementById('paintSize');
   const sizeVal=document.getElementById('paintSizeVal');
   const colorInput=document.getElementById('paintColor');
+  const color2Input=document.getElementById('paintColor2');
   const loadGrid=document.getElementById('paintLoadGrid');
 
-  // state
-  let tool='brush';
-  let drawing=false;
-  let brushSize=parseInt(sizeSlider.value)||8;
+  // ---- state ----
+  let tool='select';
   let color=colorInput.value||'#ff4444';
+  let color2=(color2Input&&color2Input.value)||'#4488ff';
+  let width=parseInt(sizeSlider.value)||8;
+  let fillMode=false, gradMode=false, mirrorX=false, mirrorY=false;
+
+  let objects=[];         // scene graph
+  let bgColor=null;       // background fill color
+  let bgImage=null;       // offscreen canvas holding loaded ball raster
+  let selected=null;
   let undoStack=[];
-  let startX=0,startY=0;
-  let snap=null;  // ImageData snapshot for shape previews
+
+  // interaction
+  let dragMode=null;      // 'move'|'resize'|'draw'
+  let lastX=0,lastY=0, startX=0,startY=0;
+  let tempObj=null, rsObj=null, rsBBox=null, rsHandle=-1;
 
   // ---- palette ----
   const PALETTE=[
@@ -299,7 +310,7 @@ function createBallPaintEditor(){
   PALETTE.forEach(c=>{
     const s=document.createElement('span');s.className='palette-swatch';
     s.style.backgroundColor=c;s.title=c;
-    s.addEventListener('click',()=>{color=c;colorInput.value=c;});
+    s.addEventListener('click',()=>{color=c;colorInput.value=c;if(selected){_pushUndo();selected.color=c;render();}});
     swatchesEl.appendChild(s);
   });
 
@@ -308,183 +319,256 @@ function createBallPaintEditor(){
     b.addEventListener('click',()=>{
       document.querySelectorAll('#paintTools .paint-tool').forEach(x=>x.classList.remove('active'));
       b.classList.add('active');tool=b.dataset.tool;
+      if(tool!=='select'){selected=null;render();}
     });
   });
 
-  // ---- brush size ----
-  sizeSlider.addEventListener('input',()=>{
-    brushSize=parseInt(sizeSlider.value);sizeVal.textContent=brushSize;
+  // ---- option toggles ----
+  document.querySelectorAll('#paintOpts .paint-opt').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const o=b.dataset.opt;
+      if(o==='fill'){fillMode=!fillMode;b.classList.toggle('active',fillMode);}
+      else if(o==='gradient'){gradMode=!gradMode;b.classList.toggle('active',gradMode);}
+      else if(o==='mirrorX'){mirrorX=!mirrorX;b.classList.toggle('active',mirrorX);}
+      else if(o==='mirrorY'){mirrorY=!mirrorY;b.classList.toggle('active',mirrorY);}
+    });
   });
-  colorInput.addEventListener('input',()=>{color=colorInput.value;});  return {canvas,ctx,tool,undoStack,loadGrid,
-    /** clear canvas + reset undo */
-    clear(){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      undoStack=[];this._pushUndo();
-    },
 
-    /** reset undo history, using current canvas content as the baseline */
-    resetUndo(){
-      undoStack=[];this._pushUndo();
-    },
+  sizeSlider.addEventListener('input',()=>{width=parseInt(sizeSlider.value);sizeVal.textContent=width;if(selected){_pushUndo();selected.width=width;render();}});
+  colorInput.addEventListener('input',()=>{color=colorInput.value;if(selected){_pushUndo();selected.color=color;if(selected.grad)selected.grad.c1=color;render();}});
+  if(color2Input)color2Input.addEventListener('input',()=>{color2=color2Input.value;if(selected&&selected.grad){selected.grad.c2=color2;render();}});
 
-    _pushUndo(){
-      undoStack.push(ctx.getImageData(0,0,canvas.width,canvas.height));
-      if(undoStack.length>20)undoStack.shift();
-    },
+  /* ================= geometry helpers ================= */
+  function nid(){return 'o'+Math.random().toString(36).slice(2,9);}
+  function hexToRgb(h){h=h.replace('#','');return[parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)];}
+  function cloneObj(o){return JSON.parse(JSON.stringify(o));}
+  function pentPts(cx,cy,r){const a=[];for(let i=0;i<5;i++){const ang=-Math.PI/2+i*2*Math.PI/5;a.push({x:cx+Math.cos(ang)*r,y:cy+Math.sin(ang)*r});}return a;}
+  function rectPts(x,y,w,h){return[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];}
+  function ptsBBox(p){let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;for(const q of p){mnx=Math.min(mnx,q.x);mny=Math.min(mny,q.y);mxx=Math.max(mxx,q.x);mxy=Math.max(mxy,q.y);}return{x:mnx,y:mny,w:mxx-mnx,h:mxy-mny};}
+  function objBBox(o){
+    if(o.kind==='ellipse')return{x:o.cx-o.rx,y:o.cy-o.ry,w:o.rx*2,h:o.ry*2};
+    return ptsBBox(o.pts);
+  }
+  function translateObj(o,dx,dy){
+    if(o.kind==='ellipse'){o.cx+=dx;o.cy+=dy;}
+    else o.pts.forEach(p=>{p.x+=dx;p.y+=dy;});
+  }
+  function scaleClone(src,ob,nb){
+    const o=cloneObj(src);
+    const sx=ob.w>1?nb.w/ob.w:1, sy=ob.h>1?nb.h/ob.h:1;
+    const map=(x,y)=>({x:nb.x+(x-ob.x)*sx, y:nb.y+(y-ob.y)*sy});
+    if(o.kind==='ellipse'){const c=map(o.cx,o.cy);o.cx=c.x;o.cy=c.y;o.rx=Math.max(2,o.rx*sx);o.ry=Math.max(2,o.ry*sy);}
+    else o.pts=o.pts.map(p=>map(p.x,p.y));
+    return o;
+  }
+  function reflectObj(o,axis){
+    const r=cloneObj(o);r.id=nid();
+    const fx=x=>W-x, fy=y=>H-y;
+    if(r.kind==='ellipse'){if(axis==='x')r.cx=fx(r.cx);else r.cy=fy(r.cy);}
+    else r.pts=r.pts.map(p=>({x:axis==='x'?fx(p.x):p.x, y:axis==='y'?fy(p.y):p.y}));
+    return r;
+  }
+  function distSeg(px,py,a,b){
+    const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;
+    if(l2===0)return Math.hypot(px-a.x,py-a.y);
+    let t=((px-a.x)*dx+(py-a.y)*dy)/l2;t=Math.max(0,Math.min(1,t));
+    return Math.hypot(px-(a.x+t*dx),py-(a.y+t*dy));
+  }
+  function pointInPoly(px,py,pts){
+    let inside=false;
+    for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+      const xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;
+      if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi))inside=!inside;
+    }
+    return inside;
+  }
+  function hitObj(o,px,py){
+    const tol=Math.max(o.width||6,7);
+    if(o.kind==='ellipse'){
+      const v=((px-o.cx)/(o.rx||1))**2+((py-o.cy)/(o.ry||1))**2;
+      if(o.fill)return v<=1.1;
+      return Math.abs(Math.sqrt(v)-1)*Math.min(o.rx,o.ry)<tol;
+    }
+    if(o.kind==='poly'){
+      if(o.fill&&pointInPoly(px,py,o.pts))return true;
+      for(let i=0;i<o.pts.length;i++){if(distSeg(px,py,o.pts[i],o.pts[(i+1)%o.pts.length])<tol)return true;}
+      return false;
+    }
+    // path (open)
+    for(let i=0;i<o.pts.length-1;i++){if(distSeg(px,py,o.pts[i],o.pts[i+1])<tol)return true;}
+    if(o.pts.length===1)return Math.hypot(px-o.pts[0].x,py-o.pts[0].y)<tol;
+    return false;
+  }
+  function gradFor(o,bb){
+    const g=ctx.createLinearGradient(bb.x,bb.y,bb.x+bb.w,bb.y+bb.h);
+    g.addColorStop(0,o.grad.c1);g.addColorStop(1,o.grad.c2);return g;
+  }
 
+  /* ================= drawing ================= */
+  function drawObj(c,o){
+    c.lineJoin='round';c.lineCap='round';
+    if(o.kind==='ellipse'){
+      c.beginPath();c.ellipse(o.cx,o.cy,Math.abs(o.rx),Math.abs(o.ry),0,0,Math.PI*2);
+      if(o.fill){c.fillStyle=o.grad?gradFor(o,objBBox(o)):o.color;c.fill();}
+      else{c.strokeStyle=o.color;c.lineWidth=o.width;c.stroke();}
+      return;
+    }
+    c.beginPath();c.moveTo(o.pts[0].x,o.pts[0].y);
+    for(let i=1;i<o.pts.length;i++)c.lineTo(o.pts[i].x,o.pts[i].y);
+    if(o.kind==='poly')c.closePath();
+    if(o.kind==='poly'&&o.fill){c.fillStyle=o.grad?gradFor(o,objBBox(o)):o.color;c.fill();}
+    else{c.strokeStyle=o.color;c.lineWidth=o.width;c.stroke();}
+  }
+  function handleRects(bb){
+    const hs=7,cx=bb.x+bb.w/2,cy=bb.y+bb.h/2;
+    const pts=[[bb.x,bb.y],[cx,bb.y],[bb.x+bb.w,bb.y],[bb.x+bb.w,cy],[bb.x+bb.w,bb.y+bb.h],[cx,bb.y+bb.h],[bb.x,bb.y+bb.h],[bb.x,cy]];
+    return pts.map(p=>({x:p[0]-hs/2,y:p[1]-hs/2,w:hs,h:hs}));
+  }
+  function drawSelection(o){
+    const bb=objBBox(o);
+    ctx.save();ctx.strokeStyle='#00e0ff';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.strokeRect(bb.x,bb.y,bb.w,bb.h);ctx.setLineDash([]);
+    ctx.fillStyle='#00e0ff';
+    handleRects(bb).forEach(h=>ctx.fillRect(h.x,h.y,h.w,h.h));
+    ctx.restore();
+  }
+  function render(showHandles=true){
+    ctx.clearRect(0,0,W,H);
+    if(bgColor){ctx.fillStyle=bgColor;ctx.fillRect(0,0,W,H);}
+    if(bgImage)ctx.drawImage(bgImage,0,0,W,H);
+    for(const o of objects)drawObj(ctx,o);
+    if(tempObj)drawObj(ctx,tempObj);
+    if(showHandles&&selected&&tool==='select')drawSelection(selected);
+  }
+
+  /* ================= undo ================= */
+  function _pushUndo(){
+    undoStack.push({objs:JSON.stringify(objects),bgColor});
+    if(undoStack.length>30)undoStack.shift();
+  }
+
+  /* ================= pointer ================= */
+  function toCanvas(ex,ey){
+    const r=canvas.getBoundingClientRect();
+    return{x:(ex-r.left)*(W/r.width), y:(ey-r.top)*(H/r.height)};
+  }
+  function shapeOpts(){return{color,width,fill:fillMode,grad:(fillMode&&gradMode)?{c1:color,c2:color2}:null};}
+  function commitObj(o){
+    objects.push(o);
+    if(mirrorX)objects.push(reflectObj(o,'x'));
+    if(mirrorY)objects.push(reflectObj(o,'y'));
+    if(mirrorX&&mirrorY)objects.push(reflectObj(reflectObj(o,'x'),'y'));
+  }
+
+  return {canvas,ctx,loadGrid,
+
+    clear(){objects=[];bgColor=null;bgImage=null;selected=null;undoStack=[];_pushUndo();render();},
+    resetUndo(){undoStack=[];_pushUndo();},
+    _pushUndo,
     undo(){
-      if(undoStack.length===0)return;
-      const prev=undoStack.pop();
-      ctx.putImageData(prev,0,0);
+      if(undoStack.length<1)return;
+      // if only baseline remains, keep it; otherwise pop current and apply previous
+      if(undoStack.length>1)undoStack.pop();
+      const s=undoStack[undoStack.length-1];
+      objects=JSON.parse(s.objs);bgColor=s.bgColor;selected=null;render();
     },
+    deleteSelected(){if(selected){_pushUndo();objects=objects.filter(o=>o!==selected);selected=null;render();}},
 
-    /** Load a built-in or custom ball onto the canvas as starting image */
     loadBall(skinKey){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const off=document.createElement('canvas');off.width=W;off.height=H;
+      const octx=off.getContext('2d');
       if(CustomBallRegistry.isCustom(skinKey)){
         const img=CustomBallRegistry.image(skinKey);
-        if(img&&img.complete){ctx.drawImage(img,0,0,canvas.width,canvas.height);}
+        if(img&&img.complete)octx.drawImage(img,0,0,W,H);
       }else{
-        // render procedural ball to FILL the canvas (diameter = canvas width) so the
-        // inscribed circle matches the in-game clip — otherwise saved balls look smaller
-        BallRenderer.draw(ctx,canvas.width/2,canvas.height/2,canvas.width,'#ffffff',skinKey,0);
+        BallRenderer.draw(octx,W/2,H/2,W,'#ffffff',skinKey,0);
       }
-      undoStack=[];
-      this._pushUndo();
+      bgImage=off;objects=[];selected=null;undoStack=[];_pushUndo();render();
+    },
+    loadImageSrc(src){
+      const img=new Image();
+      img.onload=()=>{const off=document.createElement('canvas');off.width=W;off.height=H;off.getContext('2d').drawImage(img,0,0,W,H);bgImage=off;objects=[];selected=null;undoStack=[];_pushUndo();render();};
+      img.src=src;
     },
 
-    /** Get the canvas as a data URL */
-    getDataURL(){return canvas.toDataURL('image/png');},
+    getDataURL(){render(false);const url=canvas.toDataURL('image/png');render(true);return url;},
 
-    // ---- drawing event handlers ----
     onPointerDown(ex,ey){
-      const rect=canvas.getBoundingClientRect();
-      const scaleX=canvas.width/rect.width;
-      const scaleY=canvas.height/rect.height;
-      const x=(ex-rect.left)*scaleX;
-      const y=(ey-rect.top)*scaleY;
-      drawing=true;startX=x;startY=y;
+      const p=toCanvas(ex,ey);startX=p.x;startY=p.y;lastX=p.x;lastY=p.y;
 
-      switch(tool){
-        case'brush':case'eraser':
-          this._pushUndo();this._drawDot(x,y);break;
-        case'fill':
-          this._pushUndo();this._floodFill(Math.round(x),Math.round(y));break;
-        case'eyedropper':
-          this._pickColor(Math.round(x),Math.round(y));break;
-        case'line':case'rect':case'circle':
-          snap=ctx.getImageData(0,0,canvas.width,canvas.height);break;
-        default:break;
+      if(tool==='select'){
+        if(selected){
+          const bb=objBBox(selected),hs=handleRects(bb);
+          for(let i=0;i<hs.length;i++){if(p.x>=hs[i].x-3&&p.x<=hs[i].x+hs[i].w+3&&p.y>=hs[i].y-3&&p.y<=hs[i].y+hs[i].h+3){
+            dragMode='resize';rsHandle=i;rsObj=cloneObj(selected);rsBBox=bb;_pushUndo();return;}}
+        }
+        // pick topmost under cursor
+        let found=null;for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){found=objects[i];break;}}
+        selected=found;
+        if(found){dragMode='move';_pushUndo();}
+        render();return;
       }
+      if(tool==='eyedropper'){const d=ctx.getImageData(Math.round(p.x),Math.round(p.y),1,1).data;color='#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');colorInput.value=color;return;}
+      if(tool==='fill'){
+        _pushUndo();
+        let hitOne=null;for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){hitOne=objects[i];break;}}
+        if(hitOne){hitOne.fill=true;hitOne.color=color;hitOne.grad=gradMode?{c1:color,c2:color2}:null;}
+        else bgColor=color;
+        render();return;
+      }
+      if(tool==='eraser'){
+        for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){_pushUndo();objects.splice(i,1);render();return;}}
+        return;
+      }
+      // drawing tools
+      _pushUndo();dragMode='draw';
+      const o=shapeOpts();
+      if(tool==='brush')tempObj={id:nid(),kind:'path',pts:[{x:p.x,y:p.y}],color:o.color,width:o.width};
+      else if(tool==='line')tempObj={id:nid(),kind:'path',pts:[{x:p.x,y:p.y},{x:p.x,y:p.y}],color:o.color,width:o.width};
+      else if(tool==='rect')tempObj={id:nid(),kind:'poly',pts:rectPts(p.x,p.y,0,0),color:o.color,width:o.width,fill:o.fill,grad:o.grad};
+      else if(tool==='pentagon')tempObj={id:nid(),kind:'poly',pts:pentPts(p.x,p.y,0),color:o.color,width:o.width,fill:o.fill,grad:o.grad};
+      else if(tool==='circle')tempObj={id:nid(),kind:'ellipse',cx:p.x,cy:p.y,rx:0,ry:0,color:o.color,width:o.width,fill:o.fill,grad:o.grad};
+      render();
     },
 
     onPointerMove(ex,ey){
-      if(!drawing)return;
-      const rect=canvas.getBoundingClientRect();
-      const scaleX=canvas.width/rect.width;
-      const scaleY=canvas.height/rect.height;
-      const x=(ex-rect.left)*scaleX;
-      const y=(ey-rect.top)*scaleY;
+      if(!dragMode)return;
+      const p=toCanvas(ex,ey);
 
-      switch(tool){
-        case'brush':this._drawDot(x,y);break;
-        case'eraser':
-          ctx.save();ctx.globalCompositeOperation='destination-out';this._drawDot(x,y);ctx.restore();break;
-        case'line':this._previewLine(x,y);break;
-        case'rect':this._previewRect(x,y);break;
-        case'circle':this._previewCircle(x,y);break;
+      if(dragMode==='move'&&selected){translateObj(selected,p.x-lastX,p.y-lastY);lastX=p.x;lastY=p.y;render();return;}
+      if(dragMode==='resize'&&selected){
+        const nb={x:rsBBox.x,y:rsBBox.y,w:rsBBox.w,h:rsBBox.h};
+        // adjust edges based on handle index (0TL 1T 2TR 3R 4BR 5B 6BL 7L)
+        const right=rsBBox.x+rsBBox.w, bottom=rsBBox.y+rsBBox.h;
+        if([0,6,7].includes(rsHandle)){nb.x=p.x;nb.w=right-p.x;}
+        if([2,3,4].includes(rsHandle)){nb.w=p.x-rsBBox.x;}
+        if([0,1,2].includes(rsHandle)){nb.y=p.y;nb.h=bottom-p.y;}
+        if([4,5,6].includes(rsHandle)){nb.h=p.y-rsBBox.y;}
+        if(nb.w<4)nb.w=4;if(nb.h<4)nb.h=4;
+        const idx=objects.indexOf(selected);
+        const scaled=scaleClone(rsObj,rsBBox,nb);
+        if(idx>=0)objects[idx]=scaled;selected=scaled;render();return;
+      }
+      if(dragMode==='draw'&&tempObj){
+        if(tool==='brush')tempObj.pts.push({x:p.x,y:p.y});
+        else if(tool==='line')tempObj.pts[1]={x:p.x,y:p.y};
+        else if(tool==='rect')tempObj.pts=rectPts(Math.min(startX,p.x),Math.min(startY,p.y),Math.abs(p.x-startX),Math.abs(p.y-startY));
+        else if(tool==='pentagon')tempObj.pts=pentPts(startX,startY,Math.hypot(p.x-startX,p.y-startY));
+        else if(tool==='circle'){tempObj.cx=(startX+p.x)/2;tempObj.cy=(startY+p.y)/2;tempObj.rx=Math.abs(p.x-startX)/2;tempObj.ry=Math.abs(p.y-startY)/2;}
+        render();
       }
     },
 
-    onPointerUp(ex,ey){
-      if(!drawing)return;
-      const rect=canvas.getBoundingClientRect();
-      const scaleX=canvas.width/rect.width;
-      const scaleY=canvas.height/rect.height;
-      const x=(ex-rect.left)*scaleX;
-      const y=(ey-rect.top)*scaleY;
-
-      switch(tool){
-        case'line':case'rect':case'circle':
-          this._pushUndo();this._commitShape(x,y);break;
+    onPointerUp(){
+      if(dragMode==='draw'&&tempObj){
+        // ignore zero-size shapes
+        const bb=objBBox(tempObj);
+        if(tool==='brush'||bb.w>2||bb.h>2)commitObj(tempObj);
+        tempObj=null;
       }
-      drawing=false;snap=null;
+      dragMode=null;rsHandle=-1;rsObj=null;render();
     },
 
-    // -- internals --
-    _drawDot(x,y){
-      ctx.fillStyle=tool==='eraser'?'rgba(0,0,0,0)':color;
-      ctx.beginPath();ctx.arc(x,y,brushSize/2,0,Math.PI*2);ctx.fill();
-    },
-    _previewLine(x,y){
-      if(!snap)return;
-      ctx.putImageData(snap,0,0);
-      ctx.strokeStyle=color;ctx.lineWidth=brushSize;ctx.lineCap='round';
-      ctx.beginPath();ctx.moveTo(startX,startY);ctx.lineTo(x,y);ctx.stroke();
-    },
-    _previewRect(x,y){
-      if(!snap)return;
-      ctx.putImageData(snap,0,0);
-      ctx.strokeStyle=color;ctx.lineWidth=brushSize;ctx.lineJoin='round';
-      ctx.strokeRect(startX,startY,x-startX,y-startY);
-    },
-    _previewCircle(x,y){
-      if(!snap)return;
-      ctx.putImageData(snap,0,0);
-      const cx=(startX+x)/2,cy=(startY+y)/2;
-      const rx=Math.abs(x-startX)/2,ry=Math.abs(y-startY)/2;
-      ctx.strokeStyle=color;ctx.lineWidth=brushSize;
-      ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
-    },
-    _commitShape(x,y){
-      switch(tool){
-        case'line':
-          ctx.strokeStyle=color;ctx.lineWidth=brushSize;ctx.lineCap='round';
-          ctx.beginPath();ctx.moveTo(startX,startY);ctx.lineTo(x,y);ctx.stroke();break;
-        case'rect':
-          ctx.strokeStyle=color;ctx.lineWidth=brushSize;ctx.lineJoin='round';
-          ctx.strokeRect(startX,startY,x-startX,y-startY);break;
-        case'circle':{
-          const cx=(startX+x)/2,cy=(startY+y)/2;
-          const rx=Math.abs(x-startX)/2,ry=Math.abs(y-startY)/2;
-          ctx.strokeStyle=color;ctx.lineWidth=brushSize;
-          ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();break;
-        }
-      }
-    },
-    _floodFill(sx,sy){
-      const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
-      const data=imgData.data,w=canvas.width,h=canvas.height;
-      const idx=(sy*w+sx)*4;
-      const targetR=data[idx],targetG=data[idx+1],targetB=data[idx+2],targetA=data[idx+3];
-      const [fillR,fillG,fillB]=this._hexToRgb(color);
-      if(targetR===fillR&&targetG===fillG&&targetB===fillB)return;
-
-      const stack=[[sx,sy]];
-      const visited=new Uint8Array(w*h);
-      const tol=32;
-      while(stack.length){
-        const [px,py]=stack.pop();
-        const pi=py*w+px;
-        if(visited[pi])continue;visited[pi]=1;
-        const i=pi*4;
-        if(Math.abs(data[i]-targetR)>tol||Math.abs(data[i+1]-targetG)>tol||Math.abs(data[i+2]-targetB)>tol||Math.abs(data[i+3]-targetA)>tol)continue;
-        data[i]=fillR;data[i+1]=fillG;data[i+2]=fillB;data[i+3]=255;
-        if(px>0)stack.push([px-1,py]);
-        if(px<w-1)stack.push([px+1,py]);
-        if(py>0)stack.push([px,py-1]);
-        if(py<h-1)stack.push([px,py+1]);
-      }
-      ctx.putImageData(imgData,0,0);
-    },
-    _pickColor(x,y){
-      const px=ctx.getImageData(x,y,1,1).data;
-      color='#'+[px[0],px[1],px[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
-      colorInput.value=color;
-    },
-    _hexToRgb(hex){const h=hex.replace('#','');return [parseInt(h.substring(0,2),16),parseInt(h.substring(2,4),16),parseInt(h.substring(4,6),16)];},
-
-    /** Build LOAD BALL popup: snapshots of all ball skins */
     buildLoadGrid(){
       loadGrid.innerHTML='';
       const all=[];
@@ -492,9 +576,8 @@ function createBallPaintEditor(){
       for(const c of CustomBallRegistry.list())all.push({key:c.id,label:c.name});
       all.forEach(skin=>{
         const div=document.createElement('div');div.className='paint-load-item';
-        const thumb=document.createElement('canvas');thumb.width=36;thumb.height=36;
-        const tctx=thumb.getContext('2d');
-        BallRenderer.draw(tctx,18,18,32,'#ffffff',skin.key,0);
+        const thumb=document.createElement('canvas');thumb.width=48;thumb.height=48;
+        BallRenderer.draw(thumb.getContext('2d'),24,24,44,'#ffffff',skin.key,0);
         const label=document.createElement('span');label.textContent=skin.label;
         div.appendChild(thumb);div.appendChild(label);
         div.addEventListener('click',()=>{this.loadBall(skin.key);loadGrid.classList.add('hidden');});
@@ -1614,6 +1697,7 @@ class MenuController {
       case'paint-undo':this.paintEditor&&this.paintEditor.undo();break;
       case'paint-clear':this.paintEditor&&this.paintEditor.clear();break;
       case'paint-load':this._togglePaintLoadGrid();break;
+      case'paint-delete':this.paintEditor&&this.paintEditor.deleteSelected();break;
       case'paint-save':this._paintEditorSave();break;
       case'paint-cancel':this._openBallEditor();break;
     }
@@ -1716,14 +1800,7 @@ class MenuController {
 
   /** Load an image data URL onto the paint canvas */
   _paintLoadSrc(src){
-    const img=new Image();
-    img.onload=()=>{
-      const pc=this.paintEditor.canvas,pctx=pc.getContext('2d');
-      pctx.clearRect(0,0,pc.width,pc.height);
-      pctx.drawImage(img,0,0,pc.width,pc.height);
-      this.paintEditor.resetUndo();
-    };
-    img.src=src;
+    this.paintEditor.loadImageSrc(src);
   }
 
   _togglePaintLoadGrid(){

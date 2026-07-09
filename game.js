@@ -686,24 +686,48 @@ const BallRenderer = {
   },
 
   // -- shared: draw an image-based ball (custom upload or built-in override)
-  _drawImageBall(ctx,x,y,h,img,shading){
-    if(!img||!img.complete||img.naturalWidth===0)return;
-    ctx.save();
-    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
-    ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.clip();
-    // tiny overscan (1.02×) so the image slightly bleeds past the clip edge,
-    // matching the anti-aliased boundary of procedural canvas-rendered balls
-    const d=h*2*1.02;
-    const o=(d-h*2)/2;
-    ctx.drawImage(img,x-h-o,y-h-o,d,d);
+  // Uses an offscreen anti-aliased circular mask (destination-in) instead of ctx.clip(),
+  // because clip() has HARD aliased edges while arc()+fill masking is smooth — matching
+  // the procedural balls. Masked+shaded result is cached per source image + size (WeakMap
+  // auto-invalidates when a ball is edited and its Image object is replaced).
+  _maskCache:new WeakMap(),
+  _getMasked(img,d,shading){
+    let m=this._maskCache.get(img);
+    if(!m){m=new Map();this._maskCache.set(img,m);}
+    const key=d+'|'+(shading?1:0);
+    let c=m.get(key);
+    if(!c){c=this._buildMasked(img,d,shading);m.set(key,c);}
+    return c;
+  },
+  _buildMasked(img,d,shading){
+    const c=document.createElement('canvas');c.width=d;c.height=d;
+    const g=c.getContext('2d');
+    g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
+    // draw the source image with a tiny overscan so its own soft edge sits outside the mask
+    const over=d*1.04,o=(over-d)/2;
+    g.drawImage(img,-o,-o,over,over);
+    // keep only what's inside an anti-aliased circle (smooth edge, unlike clip())
+    g.globalCompositeOperation='destination-in';
+    g.beginPath();g.arc(d/2,d/2,d/2,0,Math.PI*2);g.fill();
+    // 3D shading, confined to the circle via source-atop
     if(shading){
-      const sg=ctx.createRadialGradient(x-h*.3,y-h*.35,h*.03,x,y,h);
+      g.globalCompositeOperation='source-atop';
+      const hh=d/2;
+      const sg=g.createRadialGradient(hh-hh*.3,hh-hh*.35,hh*.03,hh,hh,hh);
       sg.addColorStop(0,'rgba(255,255,255,0)');
       sg.addColorStop(.5,'rgba(255,255,255,0)');
       sg.addColorStop(1,'rgba(0,0,0,.35)');
-      ctx.fillStyle=sg;ctx.fillRect(x-h,y-h,h*2,h*2);
+      g.fillStyle=sg;g.fillRect(0,0,d,d);
     }
-    ctx.restore();
+    g.globalCompositeOperation='source-over';
+    return c;
+  },
+  _drawImageBall(ctx,x,y,h,img,shading){
+    if(!img||!img.complete||img.naturalWidth===0)return;
+    const d=Math.max(2,Math.round(h*2));
+    const masked=this._getMasked(img,d,shading);
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    ctx.drawImage(masked,x-h,y-h,h*2,h*2);
   },
 
   // -- basketball: rich burnt orange (#b8511a range), thick black ribs, pebble texture

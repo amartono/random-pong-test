@@ -1823,15 +1823,18 @@ class MenuController {
       const b=CustomBallRegistry.get(target);
       nameField.disabled=false;
       nameField.value=b?b.name:'';
+      document.getElementById('paintShading').checked=b?!!b.shading:false;
       if(b)this._paintLoadSrc(b.src);else this.paintEditor.clear();
     }else if(mode==='builtin'){
       const lbl=(BALL_SKINS.find(s=>s.key===target)||{}).label||target;
       nameField.value=lbl;nameField.disabled=true;   // built-in keeps its name
       const ov=CustomBallRegistry.getOverride(target);
+      document.getElementById('paintShading').checked=ov?!!ov.shading:false;
       if(ov)this._paintLoadSrc(ov.src);        // continue editing existing override
       else this.paintEditor.loadBall(target);  // start from the procedural ball
     }else{
       nameField.disabled=false;nameField.value='';
+      document.getElementById('paintShading').checked=false;
       this.paintEditor.clear();
     }
     this._showSub(this.menuBallPaint);
@@ -1854,16 +1857,17 @@ class MenuController {
 
   _paintEditorSave(){
     const src=this.paintEditor.getDataURL();
+    const shading=document.getElementById('paintShading').checked;
     if(this._paintMode==='builtin'){
-      CustomBallRegistry.setOverride(this._paintBuiltinKey,src,false);
+      CustomBallRegistry.setOverride(this._paintBuiltinKey,src,shading);
     }else if(this._paintMode==='custom'){
       const name=document.getElementById('paintName').value.trim();
       if(!name){alert('ENTER A NAME');return;}
-      CustomBallRegistry.update(this._paintEditingId,name,src,false);
+      CustomBallRegistry.update(this._paintEditingId,name,src,shading);
     }else{
       const name=document.getElementById('paintName').value.trim();
       if(!name){alert('ENTER A NAME');return;}
-      CustomBallRegistry.add(name,src,false);
+      CustomBallRegistry.add(name,src,shading);
     }
     this._buildBallSkinButtons();
     this._openBallEditor();

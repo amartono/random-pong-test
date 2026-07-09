@@ -689,6 +689,7 @@ const BallRenderer = {
   _drawImageBall(ctx,x,y,h,img,shading){
     if(!img||!img.complete||img.naturalWidth===0)return;
     ctx.save();
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
     ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.clip();
     // tiny overscan (1.02×) so the image slightly bleeds past the clip edge,
     // matching the anti-aliased boundary of procedural canvas-rendered balls

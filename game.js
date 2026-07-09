@@ -690,14 +690,17 @@ const BallRenderer = {
     if(!img||!img.complete||img.naturalWidth===0)return;
     ctx.save();
     ctx.beginPath();ctx.arc(x,y,h,0,Math.PI*2);ctx.clip();
-    const d=h*2;
-    ctx.drawImage(img,x-h,y-h,d,d);
+    // tiny overscan (1.02×) so the image slightly bleeds past the clip edge,
+    // matching the anti-aliased boundary of procedural canvas-rendered balls
+    const d=h*2*1.02;
+    const o=(d-h*2)/2;
+    ctx.drawImage(img,x-h-o,y-h-o,d,d);
     if(shading){
       const sg=ctx.createRadialGradient(x-h*.3,y-h*.35,h*.03,x,y,h);
       sg.addColorStop(0,'rgba(255,255,255,0)');
       sg.addColorStop(.5,'rgba(255,255,255,0)');
       sg.addColorStop(1,'rgba(0,0,0,.35)');
-      ctx.fillStyle=sg;ctx.fillRect(x-h,y-h,d,d);
+      ctx.fillStyle=sg;ctx.fillRect(x-h,y-h,h*2,h*2);
     }
     ctx.restore();
   },

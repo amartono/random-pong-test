@@ -146,6 +146,33 @@ function checkPoolPocketHit(ball){
   return null;
 }
 
+/* ---- pool object-ball rack system ---- */
+const POOL_RACK = { objectRadius:10, gap:0.6, restitution:0.92, railBounce:0.82, frictionPerTick:0.987, stopSpeed:0.06, ownershipThreshold:0.25, breakThreshold:1.5, paddleRestitution:0.95, animTicks:18 };
+function choosePoolRackSide(){return Math.random()<0.5?'right':'left';}
+function getPoolRackPositions(side){
+  const r=POOL_RACK.objectRadius, gap=POOL_RACK.gap, fb=getPoolBounds();
+  const hSpacing=r*2+gap, wSpacing=Math.sqrt(3)*r+gap*Math.sqrt(3)/2;
+  const rackCX=side==='right'?fb.left+fb.width*0.65:fb.left+fb.width*0.35;
+  const rackCY=fb.top+fb.height*0.50;
+  const apexX=side==='right'?rackCX:rackCX+4*wSpacing; const dir=side==='right'?1:-1;
+  const p=[]; for(let c=0;c<5;c++){const n=c+1,x=apexX+c*wSpacing*dir;for(let i=0;i<n;i++)p.push({x,y:rackCY+(i-n/2+.5)*hSpacing});}return p;
+}
+function getPoolRackApex(side){return getPoolRackPositions(side)[0];}
+function createPoolObjectBalls(side){
+  const pos=getPoolRackPositions(side), layout=[1,9,2,4,8,11,14,5,12,7,6,15,10,13,3], r=POOL_RACK.objectRadius;
+  return layout.map((n,i)=>({number:n,skin:n+'ball',x:pos[i].x,y:pos[i].y,prevX:pos[i].x,prevY:pos[i].y,vx:0,vy:0,radius:r,active:true,pocketed:false,lastInfluencedBy:null,sleeping:false,sleepTimer:0,animTimer:0,pocketTarget:null}));
+}
+function createFreshPoolRack(){return createPoolObjectBalls(choosePoolRackSide());}
+function poolMainBallSpawn(side,pL,pR,bSize){
+  const r=bSize/2, gap=8, fb=getPoolBounds();
+  if(side==='right'){const x=pL.x+pL.width+r+gap,y=Math.max(fb.top+r,Math.min(fb.bottom-r,pL.y+pL.height/2));return{x,y,vxDir:1};}
+  else{const x=pR.x-r-gap,y=Math.max(fb.top+r,Math.min(fb.bottom-r,pR.y+pR.height/2));return{x,y,vxDir:-1};}
+}
+function launchPoolMainBallTowardRack(ball,rackSide){
+  const apex=getPoolRackApex(rackSide),dx=apex.x-ball.x,dy=apex.y-ball.y,len=Math.hypot(dx,dy),spd=ball.speed||CONFIG.ballSpeedInitial;
+  ball.dx=dx/len*spd;ball.dy=dy/len*spd;
+}
+
 /* ------------------------------------------------------------------ */
 /*  COLOR HELPERS                                                      */
 /* ------------------------------------------------------------------ */
@@ -1563,8 +1590,8 @@ class PongGame {
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
     this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;
-    this.multiBalls=[];
-    this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
+    this.multiBalls=[];this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();
+    this.poolMainRespawn=null;this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
     this._loop=this._loop.bind(this);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,0);this._loop(0);
   }
 
@@ -1621,6 +1648,7 @@ class PongGame {
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
     this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;this.multiBalls=[];
+    this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();this.poolMainRespawn=null;
   }
   _spawnFrenzyBalls(){
     const skins=[...BALL_SKINS];
@@ -1642,7 +1670,34 @@ class PongGame {
       if(settings.effectsEnabled){for(let i=0;i<24;i++)this.particles.push(new Particle(this.ball.x,this.ball.y,this.ball.color));}
       const wr=this._checkWin();if(wr){this.winMessage='PLAYER '+wr+' WINS!';this.state='over';if(settings.soundEnabled)this.sound.play('win');}
     }
-    if(newState==='serving'){this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,this.serveDirection);this.multiBalls=[];if(settings.gameVariant==='frenzy')this._spawnFrenzyBalls();}
+    if(newState==='serving'){
+      this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);
+      this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,this.serveDirection);
+      this.multiBalls=[];
+      if(settings.gameVariant==='frenzy')this._spawnFrenzyBalls();
+      // Pool Mode: rack + side-spawn
+      if(settings.gameVariant==='pool'){
+        if(this.poolMainRespawn){
+          // Main ball only respawn — keep existing rack side and object balls
+          const sp=poolMainBallSpawn(this.poolRackSide,this.paddleLeft,this.paddleRight,this.ball.size);
+          this.ball.x=sp.x;this.ball.y=sp.y;this.ball.prevX=sp.x;this.ball.prevY=sp.y;
+          this.ball.dx=this.ball.dy=0;this.ball.speed=CONFIG.ballSpeedInitial;
+          launchPoolMainBallTowardRack(this.ball,this.poolRackSide);
+          this.ball.lastTouchedBy=this.poolRackSide==='right'?'left':'right';
+          this.poolMainRespawn=null;
+        }else{
+          // Full rack: create new object balls
+          this.poolRackSide=choosePoolRackSide();
+          this.poolObjBalls=createPoolObjectBalls(this.poolRackSide);
+          // Spawn main ball opposite side
+          const sp=poolMainBallSpawn(this.poolRackSide,this.paddleLeft,this.paddleRight,this.ball.size);
+          this.ball.x=sp.x;this.ball.y=sp.y;this.ball.prevX=sp.x;this.ball.prevY=sp.y;
+          this.ball.dx=this.ball.dy=0;this.ball.speed=CONFIG.ballSpeedInitial;
+          launchPoolMainBallTowardRack(this.ball,this.poolRackSide);
+          this.ball.lastTouchedBy=this.poolRackSide==='right'?'left':'right';
+        }
+      }
+    }
     if(newState==='playing'&&prev!=='playing'){if(settings.soundEnabled)this.sound.play('start');}
   }
   _checkWin(){
@@ -1683,74 +1738,117 @@ class PongGame {
     for(let i=this.multiBalls.length-1;i>=0;i--){if(this._checkBall(this.multiBalls[i]))this.multiBalls.splice(i,1);}
   }
 
-  /* ---- POOL MODE: full update for a single ball in the pool table ---- */
+  /* ---- POOL MODE: full update with object balls ---- */
   _updatePoolMode(){
-    this.ball.update();
-    // paddle collisions (same as normal, but we set lastTouchedBy per-ball)
-    const bw=this.ball.size/2;
-    const pL=this.paddleLeft,pR=this.paddleRight;
-    if(this.ball.dx<0&&this.ball.x-bw<=pL.x+pL.width&&this.ball.x-bw>=pL.x){
-      if(this.ball.y+bw>=pL.y&&this.ball.y-bw<=pL.y+pL.height){this._hitBall(this.ball,pL,1);this.ball.lastTouchedBy='left';}
+    const objs=this.poolObjBalls,main=this.ball;
+    if(main.pocketed){this._poolUpdateObjBalls(objs);return;}
+    // Main ball update
+    main.update();
+    this._poolPaddleCollision(main);
+    // Object ball update + substeps
+    this._poolUpdateObjBalls(objs);
+    // Ball-to-ball collisions (main↔objects + objects↔objects)
+    for(const ob of objs){if(!ob.active||ob.pocketed)continue;this._poolPairCollision(main,ob,true);}
+    for(let i=0;i<objs.length;i++){if(!objs[i].active||objs[i].pocketed)continue;for(let j=i+1;j<objs.length;j++){if(!objs[j].active||objs[j].pocketed)continue;this._poolPairCollision(objs[i],objs[j],false);}}
+    // Pocket checks (before rail)
+    const mp=checkPoolPocketHit(main);
+    if(mp&&!main.pocketed){this._poolHandleMainPocket(mp);return;}
+    for(const ob of objs){
+      if(!ob.active||ob.pocketed||ob.animTimer>0)continue;
+      const p=checkPoolPocketHit(ob);
+      if(p){this._poolHandleObjPocket(ob,p);}
     }
-    if(this.ball.dx>0&&this.ball.x+bw>=pR.x&&this.ball.x+bw<=pR.x+pR.width){
-      if(this.ball.y+bw>=pR.y&&this.ball.y-bw<=pR.y+pR.height){this._hitBall(this.ball,pR,-1);this.ball.lastTouchedBy='right';}
+    // Rail collisions
+    this._resolvePoolRails(main);
+    for(const ob of objs){if(!ob.active||ob.pocketed)continue;this._poolObjRail(ob);}
+    // Object paddle collisions
+    if(!main.pocketed){for(const ob of objs){if(!ob.active||ob.pocketed)continue;this._poolObjPaddle(ob);}}
+    // Check if all object balls cleared
+    if(objs.length>0&&objs.every(b=>b.pocketed||!b.active)){
+      this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();this.transition('serving');
     }
-    // pocket detection (before rail — swept-segment anti-tunneling)
-    const pocket=checkPoolPocketHit(this.ball);
-    if(pocket){this._handlePoolPocket(this.ball,pocket);return;}
-    // rail collisions with pocket openings
-    this._resolvePoolRails(this.ball);
   }
 
-  /** Pool rail collisions: bounce from 4 sides, skipping pocket openings */
-  _resolvePoolRails(b){
-    const br=b.size/2, fb=getPoolBounds();
-    // TOP rail
-    if(b.y-br<=fb.top&&!isInsideTopPoolPocketOpening(b.x,br)){
-      b.y=fb.top+br;if(b.dy<0)b.dy=Math.abs(b.dy);
-      if(settings.soundEnabled)this.sound.play('wall');
+  _poolUpdateObjBalls(objs){
+    for(const ob of objs){
+      if(!ob.active||ob.pocketed){if(ob.animTimer>0){ob.animTimer--;if(ob.animTimer<=0)ob.active=false;}continue;}
+      ob.prevX=ob.x;ob.prevY=ob.y;
+      ob.x+=ob.vx;ob.y+=ob.vy;
+      // Friction
+      const spd=Math.hypot(ob.vx,ob.vy);
+      if(spd<POOL_RACK.stopSpeed){ob.vx=0;ob.vy=0;ob.sleeping=true;}
+      else{ob.sleeping=false;const f=POOL_RACK.frictionPerTick;ob.vx*=f;ob.vy*=f;}
     }
-    // BOTTOM rail
-    if(b.y+br>=fb.bottom&&!isInsideBottomPoolPocketOpening(b.x,br)){
-      b.y=fb.bottom-br;if(b.dy>0)b.dy=-Math.abs(b.dy);
-      if(settings.soundEnabled)this.sound.play('wall');
-    }
-    // LEFT rail
-    if(b.x-br<=fb.left&&!isInsideLeftPoolPocketOpening(b.y,br)){
-      b.x=fb.left+br;if(b.dx<0)b.dx=Math.abs(b.dx);
-      if(settings.soundEnabled)this.sound.play('wall');
-    }
-    // RIGHT rail
-    if(b.x+br>=fb.right&&!isInsideRightPoolPocketOpening(b.y,br)){
-      b.x=fb.right-br;if(b.dx>0)b.dx=-Math.abs(b.dx);
-      if(settings.soundEnabled)this.sound.play('wall');
-    }
-    // clamp within bounds
-    b.x=Math.max(fb.left+br,Math.min(fb.right-br,b.x));
-    b.y=Math.max(fb.top+br,Math.min(fb.bottom-br,b.y));
   }
 
-  /** Handle a ball being pocketed in pool mode */
-  _handlePoolPocket(b,pocket){
+  _poolPaddleCollision(b){
+    const bw=b.size/2,pL=this.paddleLeft,pR=this.paddleRight;
+    if(b.dx<0&&b.x-bw<=pL.x+pL.width&&b.x-bw>=pL.x&&b.y+bw>=pL.y&&b.y-bw<=pL.y+pL.height){this._hitBall(b,pL,1);b.lastTouchedBy='left';}
+    if(b.dx>0&&b.x+bw>=pR.x&&b.x+bw<=pR.x+pR.width&&b.y+bw>=pR.y&&b.y-bw<=pR.y+pR.height){this._hitBall(b,pR,-1);b.lastTouchedBy='right';}
+  }
+
+  _poolPairCollision(a,b,mainInvolved){
+    const ra=a.radius!==undefined?a.radius:a.size/2;
+    const rb=b.radius!==undefined?b.radius:b.size/2;
+    const dx=b.x-a.x,dy=b.y-a.y,dist=Math.hypot(dx,dy),min=ra+rb;
+    if(dist>=min||dist<0.001)return;
+    const nx=dx/dist,ny=dy/dist,overlap=min-dist;
+    a.x-=nx*overlap*rb/(ra+rb);a.y-=ny*overlap*rb/(ra+rb);
+    b.x+=nx*overlap*ra/(ra+rb);b.y+=ny*overlap*ra/(ra+rb);
+    const avx=a.vx!==undefined?a.vx:a.dx,avy=a.vy!==undefined?a.vy:a.dy;
+    const bvx=b.vx!==undefined?b.vx:b.dx,bvy=b.vy!==undefined?b.vy:b.dy;
+    const rv=(avx-bvx)*nx+(avy-bvy)*ny;if(rv<=0)return;
+    const ma=ra*ra,mb=rb*rb,tm=ma+mb,imp=rv*(1+POOL_RACK.restitution)/tm;
+    if(a.vx!==undefined){a.vx-=imp*mb*nx;a.vy-=imp*mb*ny;}else{a.dx-=imp*mb*nx;a.dy-=imp*mb*ny;}
+    if(b.vx!==undefined){b.vx+=imp*ma*nx;b.vy+=imp*ma*ny;}else{b.dx+=imp*ma*nx;b.dy+=imp*ma*ny;}
+    // Ownership
+    const mag=Math.abs(rv);
+    if(mainInvolved&&mag>=POOL_RACK.breakThreshold&&this.ball.lastTouchedBy){b.lastInfluencedBy=this.ball.lastTouchedBy;}
+    if(!mainInvolved&&mag>=POOL_RACK.ownershipThreshold){if(a.lastInfluencedBy&&!b.lastInfluencedBy)b.lastInfluencedBy=a.lastInfluencedBy;else if(!a.lastInfluencedBy&&b.lastInfluencedBy)a.lastInfluencedBy=b.lastInfluencedBy;}
+    if(b.sleeping)b.sleeping=false;
+    if(a.sleepTimer!==undefined)a.sleepTimer=0;if(b.sleepTimer!==undefined)b.sleepTimer=0;
+  }
+
+  _poolObjRail(ob){
+    const r=ob.radius,fb=getPoolBounds();
+    if(ob.y-r<=fb.top&&!isInsideTopPoolPocketOpening(ob.x,r)){ob.y=fb.top+r;if(ob.vy<0)ob.vy*=-POOL_RACK.railBounce;}
+    if(ob.y+r>=fb.bottom&&!isInsideBottomPoolPocketOpening(ob.x,r)){ob.y=fb.bottom-r;if(ob.vy>0)ob.vy*=-POOL_RACK.railBounce;}
+    if(ob.x-r<=fb.left&&!isInsideLeftPoolPocketOpening(ob.y,r)){ob.x=fb.left+r;if(ob.vx<0)ob.vx*=-POOL_RACK.railBounce;}
+    if(ob.x+r>=fb.right&&!isInsideRightPoolPocketOpening(ob.y,r)){ob.x=fb.right-r;if(ob.vx>0)ob.vx*=-POOL_RACK.railBounce;}
+    ob.x=Math.max(fb.left+r,Math.min(fb.right-r,ob.x));ob.y=Math.max(fb.top+r,Math.min(fb.bottom-r,ob.y));
+  }
+
+  _poolObjPaddle(ob){
+    for(const[s,p]of[['left',this.paddleLeft],['right',this.paddleRight]]){
+      const cx=Math.max(p.x,Math.min(ob.x,p.x+p.width)),cy=Math.max(p.y,Math.min(ob.y,p.y+p.height));
+      const dx=ob.x-cx,dy=ob.y-cy,dist=Math.hypot(dx,dy);
+      if(dist>=ob.radius||dist<0.001)continue;
+      const nx=dx/dist,ny=dy/dist;
+      ob.x+=nx*(ob.radius-dist);ob.y+=ny*(ob.radius-dist);
+      const rv=ob.vx*nx+ob.vy*ny-p.vy*ny;if(rv>0)continue;
+      ob.vx-=rv*nx*2*POOL_RACK.paddleRestitution;ob.vy-=rv*ny*2*POOL_RACK.paddleRestitution;
+      ob.lastInfluencedBy=s;ob.sleeping=false;
+    }
+  }
+
+  _poolHandleObjPocket(ob,p){
+    if(ob.animTimer>0)return;
+    ob.pocketed=true;ob.vx=0;ob.vy=0;ob.pocketTarget={x:p.x,y:p.y};ob.animTimer=POOL_RACK.animTicks;
+    if(settings.soundEnabled)this.sound.play('paddle');
+    if(ob.lastInfluencedBy==='left'){this.paddleLeft.score++;const w=this._checkWin();if(w){this.winMessage='PLAYER '+w+' WINS!';this.state='over';}}
+    else if(ob.lastInfluencedBy==='right'){this.paddleRight.score++;const w=this._checkWin();if(w){this.winMessage='PLAYER '+w+' WINS!';this.state='over';}}
+  }
+
+  _poolHandleMainPocket(pocket){
+    const b=this.ball;
     b.pocketed=true;b.dx=0;b.dy=0;b.x=pocket.x;b.y=pocket.y;
-    if(settings.soundEnabled)this.sound.play('paddle');   // reuse existing paddle-sound as pocket thud
-    if(settings.effectsEnabled&&b.color){
-      for(let i=0;i<12;i++)this.particles.push(new Particle(pocket.x,pocket.y,b.color));
-    }
-    // scoring
-    if(b.lastTouchedBy==='left'){
-      this.paddleLeft.score++;
-      this.serveDirection=1;
-      this.transition('goal');
-    }else if(b.lastTouchedBy==='right'){
-      this.paddleRight.score++;
-      this.serveDirection=-1;
-      this.transition('goal');
-    }else{
-      // untouched: no score, just re-serve
-      this.serveDirection=Math.random()<.5?1:-1;
-      this.transition('serving');
-    }
+    if(settings.soundEnabled)this.sound.play('paddle');
+    if(settings.effectsEnabled&&b.color){for(let i=0;i<12;i++)this.particles.push(new Particle(pocket.x,pocket.y,b.color));}
+    if(b.lastTouchedBy==='left'){this.paddleLeft.score++;}
+    else if(b.lastTouchedBy==='right'){this.paddleRight.score++;}
+    const w=this._checkWin();
+    if(w){this.winMessage='PLAYER '+w+' WINS!';this.state='over';if(settings.soundEnabled)this.sound.play('win');return;}
+    this.poolMainRespawn=true;this.transition('serving');
   }
   _ballCollision(a,b){
     const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy),min=(a.size+b.size)/2;
@@ -1906,6 +2004,8 @@ class PongGame {
     }
     this.ball.drawInterpolated(ctx,ts,alpha);
     for(const b of this.multiBalls)b.drawInterpolated(ctx,ts,alpha);
+    // pool object balls
+    if(settings.gameVariant==='pool'){for(const ob of this.poolObjBalls){if(!ob.active)continue;const s=ob.radius*2;if(ob.animTimer>0){const t=1-ob.animTimer/POOL_RACK.animTicks;ctx.save();ctx.globalAlpha=t;BallRenderer.draw(ctx,ob.pocketTarget?ob.pocketTarget.x:ob.x,ob.pocketTarget?ob.pocketTarget.y:ob.y,s*t,'#ffffff',ob.skin,0);ctx.restore();}else{BallRenderer.draw(ctx,ob.x,ob.y,s,'#ffffff',ob.skin,0);}}}
     for(const p of this.particles)p.draw(ctx,alpha);
     // power-up orb
     if(this.powerUp&&this.state==='playing'){

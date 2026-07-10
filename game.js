@@ -133,7 +133,7 @@ function checkPoolPocketHit(ball){
   const travel=Math.sqrt(dx*dx+dy*dy);
   if(travel<0.001)return null;  // stationary
   const nx=dx/travel, ny=dy/travel;
-  const br=ball.size/2;
+  const br=(ball.radius!=null?ball.radius:ball.size/2);
   for(const p of getPoolPockets()){
     const cr=p.captureRadius+br*.35;
     // project pocket center onto segment
@@ -1809,12 +1809,23 @@ class PongGame {
     if(a.sleepTimer!==undefined)a.sleepTimer=0;if(b.sleepTimer!==undefined)b.sleepTimer=0;
   }
 
+  /** Main ball rail collisions with pocket openings */
+  _resolvePoolRails(b){
+    const br=b.size/2,fb=getPoolBounds();
+    if(b.y-br<=fb.top&&!isInsideTopPoolPocketOpening(b.x,br)){b.y=fb.top+br;if(b.dy<0)b.dy=Math.abs(b.dy);b.prevY=b.y;}
+    if(b.y+br>=fb.bottom&&!isInsideBottomPoolPocketOpening(b.x,br)){b.y=fb.bottom-br;if(b.dy>0)b.dy=-Math.abs(b.dy);b.prevY=b.y;}
+    if(b.x-br<=fb.left&&!isInsideLeftPoolPocketOpening(b.y,br)){b.x=fb.left+br;if(b.dx<0)b.dx=Math.abs(b.dx);b.prevX=b.x;}
+    if(b.x+br>=fb.right&&!isInsideRightPoolPocketOpening(b.y,br)){b.x=fb.right-br;if(b.dx>0)b.dx=-Math.abs(b.dx);b.prevX=b.x;}
+    b.x=Math.max(fb.left+br,Math.min(fb.right-br,b.x));
+    b.y=Math.max(fb.top+br,Math.min(fb.bottom-br,b.y));
+  }
+
   _poolObjRail(ob){
     const r=ob.radius,fb=getPoolBounds();
-    if(ob.y-r<=fb.top&&!isInsideTopPoolPocketOpening(ob.x,r)){ob.y=fb.top+r;if(ob.vy<0)ob.vy*=-POOL_RACK.railBounce;}
-    if(ob.y+r>=fb.bottom&&!isInsideBottomPoolPocketOpening(ob.x,r)){ob.y=fb.bottom-r;if(ob.vy>0)ob.vy*=-POOL_RACK.railBounce;}
-    if(ob.x-r<=fb.left&&!isInsideLeftPoolPocketOpening(ob.y,r)){ob.x=fb.left+r;if(ob.vx<0)ob.vx*=-POOL_RACK.railBounce;}
-    if(ob.x+r>=fb.right&&!isInsideRightPoolPocketOpening(ob.y,r)){ob.x=fb.right-r;if(ob.vx>0)ob.vx*=-POOL_RACK.railBounce;}
+    if(ob.y-r<=fb.top&&!isInsideTopPoolPocketOpening(ob.x,r)){ob.y=fb.top+r;if(ob.vy<0)ob.vy*=-POOL_RACK.railBounce;ob.prevY=ob.y;}
+    if(ob.y+r>=fb.bottom&&!isInsideBottomPoolPocketOpening(ob.x,r)){ob.y=fb.bottom-r;if(ob.vy>0)ob.vy*=-POOL_RACK.railBounce;ob.prevY=ob.y;}
+    if(ob.x-r<=fb.left&&!isInsideLeftPoolPocketOpening(ob.y,r)){ob.x=fb.left+r;if(ob.vx<0)ob.vx*=-POOL_RACK.railBounce;ob.prevX=ob.x;}
+    if(ob.x+r>=fb.right&&!isInsideRightPoolPocketOpening(ob.y,r)){ob.x=fb.right-r;if(ob.vx>0)ob.vx*=-POOL_RACK.railBounce;ob.prevX=ob.x;}
     ob.x=Math.max(fb.left+r,Math.min(fb.right-r,ob.x));ob.y=Math.max(fb.top+r,Math.min(fb.bottom-r,ob.y));
   }
 

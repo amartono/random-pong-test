@@ -1994,8 +1994,8 @@ class MenuController {
     switch(a){
       case'play':this.startGame();break;
       case'toggle-gamemode':
-        settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'pool':'classic';
-        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='pool'?'POOL':'POWER UPS';break;
+        settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'frenzy':settings.gameVariant==='frenzy'?'pool':'classic';
+        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':settings.gameVariant==='pool'?'POOL':'POWER UPS';break;
       case'cycle-mode':{
         if(settings.gameMode==='pvp'){settings.gameMode='ai';settings.difficulty='easy';}
         else if(settings.difficulty==='easy')settings.difficulty='medium';
@@ -2345,7 +2345,7 @@ class MenuController {
   _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor,this.menuBallPaint].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
-    document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='pool'?'POOL':'POWER UPS';
+    document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':settings.gameVariant==='pool'?'POOL':'POWER UPS';
     const sl=document.getElementById('soundLabel'),sb=sl.parentElement;sl.textContent=settings.soundEnabled?'ON':'OFF';sb.classList.toggle('on',settings.soundEnabled);sb.classList.toggle('off',!settings.soundEnabled);
     const el=document.getElementById('effectsLabel'),eb=el.parentElement;el.textContent=settings.effectsEnabled?'ON':'OFF';eb.classList.toggle('on',settings.effectsEnabled);eb.classList.toggle('off',!settings.effectsEnabled);
   }

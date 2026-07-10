@@ -1020,7 +1020,17 @@ const BallRenderer = {
 
   // -- 8-ball: glossy black, white number circle with border, specular highlight
   _8ball(ctx,x,y,r){
-    this._billiardSolid(ctx,x,y,r,'#111111',8);
+    // hand-tuned colors for black ball — derived lighten/darken collapse to #000 on near-black
+    const highlight='#333', base='#111', shadow='#000', outline='#444', numColor='#111';
+    const grad=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.06,x,y,r);
+    grad.addColorStop(0,highlight);grad.addColorStop(.82,base);grad.addColorStop(1,shadow);
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=outline;ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#333';ctx.lineWidth=.7;ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=numColor;ctx.font=`900 ${r*1.05}px Arial,Helvetica,sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('8',x,y+1);
+    ctx.fillStyle='rgba(255,255,255,.22)';ctx.beginPath();ctx.ellipse(x-r*.20,y-r*.28,r*.18,r*.10,-.4,0,Math.PI*2);ctx.fill();
   },
 
   /** Shared billiard solid ball (1–8): colored sphere + white number patch + number */

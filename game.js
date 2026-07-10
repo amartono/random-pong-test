@@ -1766,6 +1766,7 @@ class PongGame {
 
   /* ---- POOL MODE: full update with object ball physics (substeps) ---- */
   _updatePoolMode(){
+    try {
     const dtPerTick=this.tickRate/1000; // seconds per tick
     const objs=this.poolObjectBalls;
     
@@ -1830,6 +1831,30 @@ class PongGame {
       // All cleared: re-rack
       this.transition('serving');
     }
+    } catch(e) { console.error('POOL_ERR', e.message, e.stack); }
+  }
+
+  /** Pool rail collisions for the main ball */
+  _resolvePoolRails(b){
+    const br=b.size/2, fb=getPoolBounds();
+    if(b.y-br<=fb.top&&!isInsideTopPoolPocketOpening(b.x,br)){
+      b.y=fb.top+br;if(b.dy<0)b.dy=Math.abs(b.dy);
+      if(settings.soundEnabled)this.sound.play('wall');
+    }
+    if(b.y+br>=fb.bottom&&!isInsideBottomPoolPocketOpening(b.x,br)){
+      b.y=fb.bottom-br;if(b.dy>0)b.dy=-Math.abs(b.dy);
+      if(settings.soundEnabled)this.sound.play('wall');
+    }
+    if(b.x-br<=fb.left&&!isInsideLeftPoolPocketOpening(b.y,br)){
+      b.x=fb.left+br;if(b.dx<0)b.dx=Math.abs(b.dx);
+      if(settings.soundEnabled)this.sound.play('wall');
+    }
+    if(b.x+br>=fb.right&&!isInsideRightPoolPocketOpening(b.y,br)){
+      b.x=fb.right-br;if(b.dx>0)b.dx=-Math.abs(b.dx);
+      if(settings.soundEnabled)this.sound.play('wall');
+    }
+    b.x=Math.max(fb.left+br,Math.min(fb.right-br,b.x));
+    b.y=Math.max(fb.top+br,Math.min(fb.bottom-br,b.y));
   }
   
   _poolResolveMainPaddles(){

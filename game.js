@@ -298,6 +298,7 @@ function createBallPaintEditor(){
   let dragMode=null;      // 'move'|'resize'|'draw'
   let lastX=0,lastY=0, startX=0,startY=0;
   let tempObj=null, rsObj=null, rsBBox=null, rsHandle=-1;
+  let _deferredSnap=null;  // snapshot taken on pointerDown, pushed on pointerUp (only if actually committed)
 
   // ---- palette ----
   const PALETTE=[
@@ -473,8 +474,15 @@ function createBallPaintEditor(){
 
   /* ================= undo ================= */
   function cloneCanvas(c){const o=document.createElement('canvas');o.width=W;o.height=H;o.getContext('2d').drawImage(c,0,0);return o;}
+  function _snap(){return{objs:JSON.stringify(objects),bgColor,bg:bgImage?cloneCanvas(bgImage):null};}
   function _pushUndo(){
-    undoStack.push({objs:JSON.stringify(objects),bgColor,bg:bgImage?cloneCanvas(bgImage):null});
+    undoStack.push(_snap());
+    if(undoStack.length>30)undoStack.shift();
+  }
+  // commit a deferred snapshot to the undo stack (call in onPointerUp when actual work was done)
+  function _commitSnap(){
+    if(!_deferredSnap)return;
+    undoStack.push(_deferredSnap);_deferredSnap=null;
     if(undoStack.length>30)undoStack.shift();
   }
 
@@ -526,17 +534,18 @@ function createBallPaintEditor(){
 
     onPointerDown(ex,ey){
       const p=toCanvas(ex,ey);startX=p.x;startY=p.y;lastX=p.x;lastY=p.y;
+      _deferredSnap=null;   // reset any pending snapshot
 
       if(tool==='select'){
         if(selected){
           const bb=objBBox(selected),hs=handleRects(bb);
           for(let i=0;i<hs.length;i++){if(p.x>=hs[i].x-3&&p.x<=hs[i].x+hs[i].w+3&&p.y>=hs[i].y-3&&p.y<=hs[i].y+hs[i].h+3){
-            dragMode='resize';rsHandle=i;rsObj=cloneObj(selected);rsBBox=bb;_pushUndo();return;}}
+            dragMode='resize';rsHandle=i;rsObj=cloneObj(selected);rsBBox=bb;_deferredSnap=_snap();return;}}
         }
         // pick topmost under cursor
         let found=null;for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){found=objects[i];break;}}
         selected=found;
-        if(found){dragMode='move';_pushUndo();}
+        if(found){dragMode='move';_deferredSnap=_snap();}
         render();return;
       }
       if(tool==='fill'){
@@ -553,8 +562,8 @@ function createBallPaintEditor(){
         for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){_pushUndo();objects.splice(i,1);render();return;}}
         return;
       }
-      // drawing tools
-      _pushUndo();dragMode='draw';
+      // drawing tools: defer undo until we know the draw produced something meaningful
+      _deferredSnap=_snap();dragMode='draw';
       const o=shapeOpts();
       if(tool==='brush')tempObj={id:nid(),kind:'path',pts:[{x:p.x,y:p.y}],color:o.color,width:o.width};
       else if(tool==='line')tempObj={id:nid(),kind:'path',pts:[{x:p.x,y:p.y},{x:p.x,y:p.y}],color:o.color,width:o.width};
@@ -603,9 +612,12 @@ function createBallPaintEditor(){
       if(dragMode==='draw'&&tempObj){
         // ignore zero-size shapes
         const bb=objBBox(tempObj);
-        if(tool==='brush'||bb.w>2||bb.h>2)commitObj(tempObj);
-        tempObj=null;
+        if(tool==='brush'||bb.w>2||bb.h>2){
+          commitObj(tempObj);_commitSnap();   // push the deferred snapshot, this draw was real
+        }
+        tempObj=null;_deferredSnap=null;
       }
+      if(dragMode==='move'||dragMode==='resize')_commitSnap();  // select/move/resize always real
       dragMode=null;rsHandle=-1;rsObj=null;render();
     },
 

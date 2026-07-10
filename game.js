@@ -33,6 +33,120 @@ const POWERUP_TYPES = [
 ];
 
 /* ------------------------------------------------------------------ */
+/*  POOL MODE CONFIGURATION & HELPERS                                   */
+/* ------------------------------------------------------------------ */
+
+const POOL_CONFIG = {
+  outerFrameThickness: 14,
+  railThickness: 28,
+  innerRailHighlight: 3,
+  cornerPocketRadius: 22,
+  sidePocketRadius: 19,
+  cornerPocketCaptureRadius: 18,
+  sidePocketCaptureRadius: 16,
+  pocketOpeningPadding: 5,
+  paddleInset: 18,
+  paddleVerticalSafety: 8,
+  feltColor: '#0b7a38',
+  feltDarkColor: '#045827',
+  railColor: '#6d241c',
+  railDarkColor: '#35100d',
+  pocketColor: '#050505',
+};
+
+/** Calculate the felt bounds (inner playing area) from the rails */
+function getPoolBounds(){
+  const w=CONFIG.canvasWidth, h=CONFIG.canvasHeight, t=POOL_CONFIG.railThickness;
+  return {left:t, right:w-t, top:t, bottom:h-t, width:w-2*t, height:h-2*t};
+}
+
+/** Return all 6 pocket objects */
+function getPoolPockets(){
+  const w=CONFIG.canvasWidth, h=CONFIG.canvasHeight;
+  const fl=POOL_CONFIG.railThickness, fr=w-POOL_CONFIG.railThickness;
+  const ft=POOL_CONFIG.railThickness, fb=h-POOL_CONFIG.railThickness;
+  const cx=w/2;
+  return [
+    { id:'top-left',     type:'corner', x:fl, y:ft, visualRadius:POOL_CONFIG.cornerPocketRadius, captureRadius:POOL_CONFIG.cornerPocketCaptureRadius },
+    { id:'top-center',   type:'side',   x:cx, y:ft, visualRadius:POOL_CONFIG.sidePocketRadius,   captureRadius:POOL_CONFIG.sidePocketCaptureRadius },
+    { id:'top-right',    type:'corner', x:fr, y:ft, visualRadius:POOL_CONFIG.cornerPocketRadius, captureRadius:POOL_CONFIG.cornerPocketCaptureRadius },
+    { id:'bottom-left',  type:'corner', x:fl, y:fb, visualRadius:POOL_CONFIG.cornerPocketRadius, captureRadius:POOL_CONFIG.cornerPocketCaptureRadius },
+    { id:'bottom-center',type:'side',   x:cx, y:fb, visualRadius:POOL_CONFIG.sidePocketRadius,   captureRadius:POOL_CONFIG.sidePocketCaptureRadius },
+    { id:'bottom-right', type:'corner', x:fr, y:fb, visualRadius:POOL_CONFIG.cornerPocketRadius, captureRadius:POOL_CONFIG.cornerPocketCaptureRadius },
+  ];
+}
+
+/** Check if a position x (ball center) is inside a pocket opening on the TOP rail */
+function isInsideTopPoolPocketOpening(x,ballR){
+  const b=getPoolBounds();
+  const openingPad=POOL_CONFIG.pocketOpeningPadding+ballR;
+  const pockets=getPoolPockets().filter(p=>p.y===b.top);
+  for(const p of pockets){
+    const ohw=p.visualRadius+openingPad;
+    if(x>p.x-ohw&&x<p.x+ohw)return true;
+  }
+  return false;
+}
+/** Same for BOTTOM rail */
+function isInsideBottomPoolPocketOpening(x,ballR){
+  const b=getPoolBounds();
+  const openingPad=POOL_CONFIG.pocketOpeningPadding+ballR;
+  const pockets=getPoolPockets().filter(p=>p.y===b.bottom);
+  for(const p of pockets){
+    const ohw=p.visualRadius+openingPad;
+    if(x>p.x-ohw&&x<p.x+ohw)return true;
+  }
+  return false;
+}
+/** Check if y position is inside a LEFT rail pocket opening */
+function isInsideLeftPoolPocketOpening(y,ballR){
+  const b=getPoolBounds();
+  const openingPad=POOL_CONFIG.pocketOpeningPadding+ballR;
+  const pockets=getPoolPockets().filter(p=>p.x===b.left&&p.id.startsWith('top')||p.x===b.left&&p.id.startsWith('bottom'));
+  for(const p of getPoolPockets()){
+    if(p.x!==b.left)continue;
+    if(p.y===b.top||p.y===b.bottom){
+      const ohv=p.visualRadius+openingPad;
+      if(y>p.y-ohv&&y<p.y+ohv)return true;
+    }
+  }
+  return false;
+}
+/** Check if y position is inside a RIGHT rail pocket opening */
+function isInsideRightPoolPocketOpening(y,ballR){
+  const b=getPoolBounds();
+  const openingPad=POOL_CONFIG.pocketOpeningPadding+ballR;
+  for(const p of getPoolPockets()){
+    if(p.x!==b.right)continue;
+    if(p.y===b.top||p.y===b.bottom){
+      const ohv=p.visualRadius+openingPad;
+      if(y>p.y-ohv&&y<p.y+ohv)return true;
+    }
+  }
+  return false;
+}
+
+/** Swept-segment pocket detection — prevents fast balls from tunneling through pockets */
+function checkPoolPocketHit(ball){
+  const cx=(ball.prevX+ball.x)/2, cy=(ball.prevY+ball.y)/2;
+  const dx=ball.x-ball.prevX, dy=ball.y-ball.prevY;
+  const travel=Math.sqrt(dx*dx+dy*dy);
+  if(travel<0.001)return null;  // stationary
+  const nx=dx/travel, ny=dy/travel;
+  const br=ball.size/2;
+  for(const p of getPoolPockets()){
+    const cr=p.captureRadius+br*.35;
+    // project pocket center onto segment
+    let qx=(p.x-ball.prevX)*nx+(p.y-ball.prevY)*ny;
+    qx=Math.max(0,Math.min(travel,qx));
+    const qpx=ball.prevX+nx*qx, qpy=ball.prevY+ny*qx;
+    const dist=Math.hypot(p.x-qpx,p.y-qpy);
+    if(dist<=cr)return p;
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
 /*  COLOR HELPERS                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -1223,12 +1337,12 @@ class Paddle {
 class Ball {
   constructor(x,y,s,color){
     this.x=x;this.y=y;this.prevX=x;this.prevY=y;this.size=s;this.color=color;this.skin='circle';this.dx=0;this.dy=0;this.speed=CONFIG.ballSpeedInitial;
-    this.angle=0;this.spin=0;
+    this.angle=0;this.spin=0;this.lastTouchedBy=null;this.pocketed=false;
   }
   reset(cw,ch,dir){
     this.x=cw/2;this.y=ch/2;this.prevX=this.x;this.prevY=this.y;this.speed=CONFIG.ballSpeedInitial;
     const ang=Math.random()*.8-.4;this.dx=Math.cos(ang)*this.speed*dir;this.dy=Math.sin(ang)*this.speed;
-    this.angle=0;this.spin=0;
+    this.angle=0;this.spin=0;this.lastTouchedBy=null;this.pocketed=false;
   }
   update(){this.prevX=this.x;this.prevY=this.y;this.x+=this.dx;this.y+=this.dy;this.angle+=this.spin;this.spin*=.998;}
   draw(ctx,t){ctx.save();ctx.translate(this.x,this.y);ctx.rotate(this.angle);ctx.translate(-this.x,-this.y);
@@ -1393,8 +1507,18 @@ class PongGame {
   _syncDimensions(){
     this.paddleLeft.setDimensions(settings.paddleWidth,settings.paddleHeight);
     this.paddleRight.setDimensions(settings.paddleWidth,settings.paddleHeight);
-    this.paddleLeft.x=CONFIG.paddleMargin-settings.paddleWidth/2;
-    this.paddleRight.x=CONFIG.canvasWidth-CONFIG.paddleMargin-settings.paddleWidth/2;
+    if(settings.gameVariant==='pool'){
+      const fb=getPoolBounds();
+      this.paddleLeft.x=fb.left+POOL_CONFIG.paddleInset;
+      this.paddleRight.x=fb.right-POOL_CONFIG.paddleInset-this.paddleRight.width;
+      const safe=POOL_CONFIG.paddleVerticalSafety;
+      const minY=fb.top+safe, maxY=fb.bottom-safe-this.paddleLeft.height;
+      this.paddleLeft.y=Math.max(minY,Math.min(maxY,this.paddleLeft.y));
+      this.paddleRight.y=Math.max(minY,Math.min(maxY,this.paddleRight.y));
+    }else{
+      this.paddleLeft.x=CONFIG.paddleMargin-settings.paddleWidth/2;
+      this.paddleRight.x=CONFIG.canvasWidth-CONFIG.paddleMargin-settings.paddleWidth/2;
+    }
     this.ball.size=settings.ballSize;
     this.paddleLeft.reset(CONFIG.canvasHeight);
     this.paddleRight.reset(CONFIG.canvasHeight);
@@ -1462,19 +1586,89 @@ class PongGame {
   _updateServing(){if(++this.serveTimer>90)this.transition('playing');}
   _updatePlaying(){
     this._handleInput();
-    this.paddleLeft.update(CONFIG.canvasHeight);
-    if(this.ai){this.ai.update(this.paddleRight,[this.ball,...this.multiBalls],CONFIG.canvasHeight);if(this.puEffects.rSlow>0)this.paddleRight.vy*=.4;}
-    this.paddleRight.update(CONFIG.canvasHeight);
+    const ch=settings.gameVariant==='pool'?getPoolBounds().bottom:CONFIG.canvasHeight;
+    this.paddleLeft.update(ch);
+    if(this.ai){this.ai.update(this.paddleRight,[this.ball,...this.multiBalls],ch);if(this.puEffects.rSlow>0)this.paddleRight.vy*=.4;}
+    this.paddleRight.update(ch);
+    if(settings.gameVariant==='pool'){this._updatePoolMode();return;}
+    // original normal/frenzy/powerups ball processing
     this.ball.update();
     for(const b of this.multiBalls)b.update();
-    // ball-ball collisions
     for(const b of this.multiBalls)this._ballCollision(this.ball,b);
     for(let i=0;i<this.multiBalls.length;i++)
       for(let j=i+1;j<this.multiBalls.length;j++)this._ballCollision(this.multiBalls[i],this.multiBalls[j]);
-    // check main ball
     if(this._checkBall(this.ball)&&this.multiBalls.length>0){const b=this.multiBalls.pop();this.ball.x=b.x;this.ball.y=b.y;this.ball.prevX=b.x;this.ball.prevY=b.y;this.ball.dx=b.dx;this.ball.dy=b.dy;this.ball.speed=b.speed;this.ball.spin=b.spin;this.ball.angle=b.angle;this.ball.skin=b.skin;this.ball.color=b.color;}
-    // check multi balls
     for(let i=this.multiBalls.length-1;i>=0;i--){if(this._checkBall(this.multiBalls[i]))this.multiBalls.splice(i,1);}
+  }
+
+  /* ---- POOL MODE: full update for a single ball in the pool table ---- */
+  _updatePoolMode(){
+    this.ball.update();
+    // paddle collisions (same as normal, but we set lastTouchedBy per-ball)
+    const bw=this.ball.size/2;
+    const pL=this.paddleLeft,pR=this.paddleRight;
+    if(this.ball.dx<0&&this.ball.x-bw<=pL.x+pL.width&&this.ball.x-bw>=pL.x){
+      if(this.ball.y+bw>=pL.y&&this.ball.y-bw<=pL.y+pL.height){this._hitBall(this.ball,pL,1);this.ball.lastTouchedBy='left';}
+    }
+    if(this.ball.dx>0&&this.ball.x+bw>=pR.x&&this.ball.x+bw<=pR.x+pR.width){
+      if(this.ball.y+bw>=pR.y&&this.ball.y-bw<=pR.y+pR.height){this._hitBall(this.ball,pR,-1);this.ball.lastTouchedBy='right';}
+    }
+    // pocket detection (before rail — swept-segment anti-tunneling)
+    const pocket=checkPoolPocketHit(this.ball);
+    if(pocket){this._handlePoolPocket(this.ball,pocket);return;}
+    // rail collisions with pocket openings
+    this._resolvePoolRails(this.ball);
+  }
+
+  /** Pool rail collisions: bounce from 4 sides, skipping pocket openings */
+  _resolvePoolRails(b){
+    const br=b.size/2, fb=getPoolBounds();
+    // TOP rail
+    if(b.y-br<=fb.top&&!isInsideTopPoolPocketOpening(b.x,br)){
+      b.y=fb.top+br;if(b.dy<0)b.dy=Math.abs(b.dy);
+      if(settings.soundEnabled)this.sound.play('wall');
+    }
+    // BOTTOM rail
+    if(b.y+br>=fb.bottom&&!isInsideBottomPoolPocketOpening(b.x,br)){
+      b.y=fb.bottom-br;if(b.dy>0)b.dy=-Math.abs(b.dy);
+      if(settings.soundEnabled)this.sound.play('wall');
+    }
+    // LEFT rail
+    if(b.x-br<=fb.left&&!isInsideLeftPoolPocketOpening(b.y,br)){
+      b.x=fb.left+br;if(b.dx<0)b.dx=Math.abs(b.dx);
+      if(settings.soundEnabled)this.sound.play('wall');
+    }
+    // RIGHT rail
+    if(b.x+br>=fb.right&&!isInsideRightPoolPocketOpening(b.y,br)){
+      b.x=fb.right-br;if(b.dx>0)b.dx=-Math.abs(b.dx);
+      if(settings.soundEnabled)this.sound.play('wall');
+    }
+    // clamp within bounds
+    b.x=Math.max(fb.left+br,Math.min(fb.right-br,b.x));
+    b.y=Math.max(fb.top+br,Math.min(fb.bottom-br,b.y));
+  }
+
+  /** Handle a ball being pocketed in pool mode */
+  _handlePoolPocket(b,pocket){
+    b.pocketed=true;b.dx=0;b.dy=0;b.x=pocket.x;b.y=pocket.y;
+    if(settings.soundEnabled)this.sound.play('paddle');   // reuse existing paddle-sound as pocket thud
+    if(settings.effectsEnabled&&b.color){
+      for(let i=0;i<12;i++)this.particles.push(new Particle(pocket.x,pocket.y,b.color));
+    }
+    // scoring
+    if(b.lastTouchedBy==='left'){
+      this.paddleLeft.score++;
+      this.serveDirection=1;
+      this.transition('goal');
+    }else if(b.lastTouchedBy==='right'){
+      this.paddleRight.score++;
+      this.serveDirection=-1;
+      this.transition('goal');
+    }else{
+      // untouched: no score, just re-serve
+      this.serveDirection=Math.random()<.5?1:-1;
+      this.transition('serving');
+    }
   }
   _ballCollision(a,b){
     const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy),min=(a.size+b.size)/2;
@@ -1538,6 +1732,15 @@ class PongGame {
     if(this.input.isDown('w')||this.input.isDown('W'))this.paddleLeft.vy=-lSpd;
     if(this.input.isDown('s')||this.input.isDown('S'))this.paddleLeft.vy=lSpd;
     if(!this.ai){if(this.input.isDown('ArrowUp'))this.paddleRight.vy=-rSpd;if(this.input.isDown('ArrowDown'))this.paddleRight.vy=rSpd;}
+    // pool-mode paddle clamping
+    if(settings.gameVariant==='pool'){
+      const fb=getPoolBounds(),safe=POOL_CONFIG.paddleVerticalSafety;
+      const mn=fb.top+safe,mx=fb.bottom-safe-this.paddleLeft.height;
+      if(this.paddleLeft.y<mn)this.paddleLeft.y=mn;
+      if(this.paddleLeft.y>mx)this.paddleLeft.y=mx;
+      if(this.paddleRight.y<mn)this.paddleRight.y=mn;
+      if(this.paddleRight.y>mx)this.paddleRight.y=mx;
+    }
   }
 
   /* ---- power-ups ---- */
@@ -1597,9 +1800,15 @@ class PongGame {
     const ctx=this.ctx,w=CONFIG.canvasWidth,h=CONFIG.canvasHeight,theme=this.getTheme();
     const alpha=(this.state==='playing'&&!this.paused)?Math.min(this.accumulator/this.tickRate,1):1;
     ctx.fillStyle=settings.themeOverrideBg||theme.bg;ctx.fillRect(0,0,w,h);
-    ctx.strokeStyle=theme.centerLine;ctx.lineWidth=2;
-    switch(theme.lineStyle){case'dashed':ctx.setLineDash([8,12]);break;case'dotted':ctx.setLineDash([3,8]);break;default:ctx.setLineDash([]);}
-    ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();ctx.setLineDash([]);
+
+    // ---- POOL TABLE ----
+    if(settings.gameVariant==='pool')this._drawPoolTable(ctx,w,h,theme);
+    else{
+      ctx.strokeStyle=theme.centerLine;ctx.lineWidth=2;
+      switch(theme.lineStyle){case'dashed':ctx.setLineDash([8,12]);break;case'dotted':ctx.setLineDash([3,8]);break;default:ctx.setLineDash([]);}
+      ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();ctx.setLineDash([]);
+    }
+    // ---- paddles, balls, effects (shared) ----
     this.paddleLeft.drawInterpolated(ctx,this.getLeftPaddleStyle(),alpha);
     this.paddleRight.drawInterpolated(ctx,this.getRightPaddleStyle(),alpha);
     // big paddle overlay — draw expanded paddle
@@ -1658,6 +1867,46 @@ class PongGame {
       ctx.font='10px "Press Start 2P",monospace';ctx.globalAlpha=.5+Math.sin(Date.now()/400)*.3;ctx.fillText('PRESS SPACE TO RESTART',w/2,h/2+48);
     }
     ctx.restore();
+  }
+
+  /** Draw the pool table arena: outer frame, wooden rails, green felt, 6 pockets */
+  _drawPoolTable(ctx,w,h,theme){
+    const t=POOL_CONFIG.railThickness;
+    const b=getPoolBounds();
+    // === outer table frame ===
+    ctx.fillStyle='#1a0a05';ctx.fillRect(0,0,w,h);
+    // === wooden rails ===
+    ctx.fillStyle=POOL_CONFIG.railColor;
+    ctx.fillRect(0,0,w,t);                          // top rail
+    ctx.fillRect(0,h-t,w,t);                        // bottom rail
+    ctx.fillRect(0,0,t,h);                          // left rail
+    ctx.fillRect(w-t,0,t,h);                        // right rail
+    // rail inner highlight
+    ctx.strokeStyle='#8a3d33';ctx.lineWidth=2;
+    ctx.strokeRect(t-1,t-1,w-2*t+2,h-2*t+2);
+    // === green felt ===
+    ctx.fillStyle=POOL_CONFIG.feltColor;
+    ctx.fillRect(b.left,b.top,b.width,b.height);
+    // felt dark border
+    ctx.strokeStyle=POOL_CONFIG.feltDarkColor;ctx.lineWidth=3;
+    ctx.strokeRect(b.left,b.top,b.width,b.height);
+    // === pockets ===
+    const pockets=getPoolPockets();
+    for(const p of pockets){
+      // outer rim
+      ctx.fillStyle='#1a0a05';
+      ctx.beginPath();ctx.arc(p.x,p.y,p.visualRadius+4,0,Math.PI*2);ctx.fill();
+      // rim highlight
+      ctx.strokeStyle='#5a2a22';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.visualRadius+2,0,Math.PI*2);ctx.stroke();
+      // pocket interior (dark center)
+      ctx.fillStyle=POOL_CONFIG.pocketColor;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.visualRadius*.7,0,Math.PI*2);ctx.fill();
+    }
+    // === felt center circle (decorative) ===
+    ctx.strokeStyle=POOL_CONFIG.feltDarkColor;ctx.lineWidth=1.5;ctx.globalAlpha=.15;
+    ctx.beginPath();ctx.arc(w/2,h/2,Math.min(b.width,b.height)*.15,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=1;
   }
 }
 
@@ -1745,8 +1994,8 @@ class MenuController {
     switch(a){
       case'play':this.startGame();break;
       case'toggle-gamemode':
-        settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'frenzy':'classic';
-        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':'POWER UPS';break;
+        settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'pool':'classic';
+        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='pool'?'POOL':'POWER UPS';break;
       case'cycle-mode':{
         if(settings.gameMode==='pvp'){settings.gameMode='ai';settings.difficulty='easy';}
         else if(settings.difficulty==='easy')settings.difficulty='medium';
@@ -2096,7 +2345,7 @@ class MenuController {
   _showSub(active){[this.menuMain,this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor,this.menuBallPaint].forEach(m=>m.classList.add('hidden'));active.classList.remove('hidden');}
   _syncUI(){
     document.getElementById('modeLabel').textContent=settings.gameMode==='ai'?'PLAYER vs AI ('+settings.difficulty.toUpperCase()+')':'PLAYER vs PLAYER';
-    document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':'POWER UPS';
+    document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='pool'?'POOL':'POWER UPS';
     const sl=document.getElementById('soundLabel'),sb=sl.parentElement;sl.textContent=settings.soundEnabled?'ON':'OFF';sb.classList.toggle('on',settings.soundEnabled);sb.classList.toggle('off',!settings.soundEnabled);
     const el=document.getElementById('effectsLabel'),eb=el.parentElement;el.textContent=settings.effectsEnabled?'ON':'OFF';eb.classList.toggle('on',settings.effectsEnabled);eb.classList.toggle('off',!settings.effectsEnabled);
   }

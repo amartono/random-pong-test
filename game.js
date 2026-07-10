@@ -480,10 +480,16 @@ function createBallPaintEditor(){
     if(undoStack.length>30)undoStack.shift();
   }
   // commit a deferred snapshot to the undo stack (call in onPointerUp when actual work was done)
+  // On phantom clicks (zero-size shapes), _discardSnap removes it from the stack.
   function _commitSnap(){
     if(!_deferredSnap)return;
-    undoStack.push(_deferredSnap);_deferredSnap=null;
-    if(undoStack.length>30)undoStack.shift();
+    _deferredSnap=null;
+    // snapshot already on the stack; nothing more to do
+  }
+  function _discardSnap(){
+    // pop the wasted entry pushed in onPointerDown for a zero-size shape
+    if(undoStack.length>1)undoStack.pop();
+    _deferredSnap=null;
   }
 
   /* ================= pointer ================= */
@@ -505,10 +511,10 @@ function createBallPaintEditor(){
     resetUndo(){undoStack=[];_pushUndo();},
     _pushUndo,
     undo(){
-      if(undoStack.length<1)return;
-      // if only baseline remains, keep it; otherwise pop current and apply previous
-      if(undoStack.length>1)undoStack.pop();
-      const s=undoStack[undoStack.length-1];
+      // Pop and restore the PREVIOUS state directly — the top of the stack
+      // IS the state before the last action, so restore what we pop.
+      if(undoStack.length<=1)return;  // keep baseline
+      const s=undoStack.pop();
       objects=JSON.parse(s.objs);bgColor=s.bgColor;bgImage=s.bg?cloneCanvas(s.bg):null;selected=null;render();
     },
     deleteSelected(){if(selected){_pushUndo();objects=objects.filter(o=>o!==selected);selected=null;render();}},
@@ -534,18 +540,18 @@ function createBallPaintEditor(){
 
     onPointerDown(ex,ey){
       const p=toCanvas(ex,ey);startX=p.x;startY=p.y;lastX=p.x;lastY=p.y;
-      _deferredSnap=null;   // reset any pending snapshot
+      _deferredSnap=false;   // clear any pending flag
 
       if(tool==='select'){
         if(selected){
           const bb=objBBox(selected),hs=handleRects(bb);
           for(let i=0;i<hs.length;i++){if(p.x>=hs[i].x-3&&p.x<=hs[i].x+hs[i].w+3&&p.y>=hs[i].y-3&&p.y<=hs[i].y+hs[i].h+3){
-            dragMode='resize';rsHandle=i;rsObj=cloneObj(selected);rsBBox=bb;_deferredSnap=_snap();return;}}
+            dragMode='resize';rsHandle=i;rsObj=cloneObj(selected);rsBBox=bb;_pushUndo();_deferredSnap=true;return;}}
         }
         // pick topmost under cursor
         let found=null;for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){found=objects[i];break;}}
         selected=found;
-        if(found){dragMode='move';_deferredSnap=_snap();}
+        if(found){dragMode='move';_pushUndo();_deferredSnap=true;}
         render();return;
       }
       if(tool==='fill'){
@@ -562,8 +568,8 @@ function createBallPaintEditor(){
         for(let i=objects.length-1;i>=0;i--){if(hitObj(objects[i],p.x,p.y)){_pushUndo();objects.splice(i,1);render();return;}}
         return;
       }
-      // drawing tools: defer undo until we know the draw produced something meaningful
-      _deferredSnap=_snap();dragMode='draw';
+      // drawing tools: push undo now; if the shape turns out zero-size, we'll pop it in onPointerUp
+      _pushUndo();_deferredSnap=true;dragMode='draw';
       const o=shapeOpts();
       if(tool==='brush')tempObj={id:nid(),kind:'path',pts:[{x:p.x,y:p.y}],color:o.color,width:o.width};
       else if(tool==='line')tempObj={id:nid(),kind:'path',pts:[{x:p.x,y:p.y},{x:p.x,y:p.y}],color:o.color,width:o.width};
@@ -610,12 +616,13 @@ function createBallPaintEditor(){
     onPointerUp(){
       if(!dragMode)return;   // guard: only process once per draw action
       if(dragMode==='draw'&&tempObj){
-        // ignore zero-size shapes
         const bb=objBBox(tempObj);
         if(tool==='brush'||bb.w>2||bb.h>2){
-          commitObj(tempObj);_commitSnap();   // push the deferred snapshot, this draw was real
+          commitObj(tempObj);_commitSnap();   // real draw: keep the undo entry
+        }else{
+          _discardSnap();   // zero-size shape: pop the wasted undo entry
         }
-        tempObj=null;_deferredSnap=null;
+        tempObj=null;
       }
       if(dragMode==='move'||dragMode==='resize')_commitSnap();  // select/move/resize always real
       dragMode=null;rsHandle=-1;rsObj=null;render();

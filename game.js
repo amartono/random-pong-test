@@ -599,6 +599,7 @@ function createBallPaintEditor(){
     },
 
     onPointerUp(){
+      if(!dragMode)return;   // guard: only process once per draw action
       if(dragMode==='draw'&&tempObj){
         // ignore zero-size shapes
         const bb=objBBox(tempObj);
@@ -1832,8 +1833,7 @@ class MenuController {
       const cv=this.paintEditor.canvas;
       cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);this.paintEditor.onPointerDown(e.clientX,e.clientY);});
       cv.addEventListener('pointermove',e=>this.paintEditor.onPointerMove(e.clientX,e.clientY));
-      cv.addEventListener('pointerup',e=>this.paintEditor.onPointerUp(e.clientX,e.clientY));
-      cv.addEventListener('pointerleave',e=>this.paintEditor.onPointerUp(e.clientX,e.clientY));
+      cv.addEventListener('pointerup',e=>this.paintEditor.onPointerUp());
     }
     document.getElementById('paintLoadGrid').classList.add('hidden');
     const nameField=document.getElementById('paintName');

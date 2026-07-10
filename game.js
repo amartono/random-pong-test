@@ -131,11 +131,12 @@ function checkPoolPocketHit(ball){
   const cx=(ball.prevX+ball.x)/2, cy=(ball.prevY+ball.y)/2;
   const dx=ball.x-ball.prevX, dy=ball.y-ball.prevY;
   const travel=Math.sqrt(dx*dx+dy*dy);
-  if(travel<0.001)return null;
+  if(travel<0.001)return null;  // stationary
   const nx=dx/travel, ny=dy/travel;
-  const br=(ball.radius!==undefined?ball.radius:ball.size/2);
+  const br=ball.size/2;
   for(const p of getPoolPockets()){
     const cr=p.captureRadius+br*.35;
+    // project pocket center onto segment
     let qx=(p.x-ball.prevX)*nx+(p.y-ball.prevY)*ny;
     qx=Math.max(0,Math.min(travel,qx));
     const qpx=ball.prevX+nx*qx, qpy=ball.prevY+ny*qx;
@@ -143,73 +144,6 @@ function checkPoolPocketHit(ball){
     if(dist<=cr)return p;
   }
   return null;
-}
-
-/* ---- pool rack config & object-ball helpers ---- */
-const POOL_RACK_CONFIG = {
-  objectBallRadius: 10,
-  rackGap: 0.75,
-  objectBallRestitution: 0.92,
-  railRestitution: 0.85,
-  paddleRestitution: 0.95,
-  frictionPerTick: 0.988,          // per-tick multiplier (at 60fps ~ 0.49 after 1s)
-  stopSpeed: 0.08,
-  ownershipImpulseThreshold: 0.3,
-  pocketAnimDuration: 20,           // ticks
-  minBallSpeed: 1.8,
-  breakImpulseMin: 2.0,
-};
-
-function getPoolObjectBallRadius(){ return POOL_RACK_CONFIG.objectBallRadius; }
-
-/** Build the triangular rack positions. Apex points toward the given direction.
- *  `cx,cy` = center of the rack (center of the 3rd-row where 8-ball sits).
- *  `apexDir` = -1 for left-pointing (racket on right), +1 for right-pointing. */
-function getPoolRackPositions(cx, cy, apexDir){
-  const r=getPoolObjectBallRadius(), gap=POOL_RACK_CONFIG.rackGap;
-  const rowSpacing=r*2+gap;
-  const colSpacing=Math.sqrt(3)*r+gap;
-  const positions=[];
-  // 5 rows, row 0 = apex (1 ball), row 4 = base (5 balls)
-  for(let row=0; row<5; row++){
-    const ballsInRow=row+1;
-    const rowY=cy-(row*rowSpacing*apexDir);
-    // center each row: offset by half the row width
-    const startX=cx-(ballsInRow-1)*colSpacing/2;
-    for(let col=0; col<ballsInRow; col++){
-      positions.push({x:startX+col*colSpacing, y:rowY});
-    }
-  }
-  return positions;
-}
-
-/** Create the array of object balls with correct numbering for a standard rack.
- *  Ball 1 at apex, Ball 8 center, corners one solid+one stripe, rest shuffled. */
-function createPoolRack(cx, cy, apexDir){
-  const positions=getPoolRackPositions(cx, cy, apexDir);
-  // Standard rack numbering (positions index → ball number)
-  // Layout (apex at top):
-  //       1
-  //     9   2
-  //   4   8   11
-  // 14   5   12   7
-  //6   15   10   13   3
-  const layout=[1, 9,2, 4,8,11, 14,5,12,7, 6,15,10,13,3];
-  const balls=[];
-  for(let i=0; i<15; i++){
-    const num=layout[i];
-    const pos=positions[i];
-    const r=getPoolObjectBallRadius();
-    balls.push({
-      number:num, skin:num+'ball',
-      x:pos.x, y:pos.y, prevX:pos.x, prevY:pos.y,
-      vx:0, vy:0, radius:r, rotation:0, angularVel:0,
-      active:true, pocketed:false, pocketTarget:null,
-      lastInfluencedBy:null, sleepTimer:0,
-      animTimer:0,
-    });
-  }
-  return balls;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1630,7 +1564,6 @@ class PongGame {
     this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;
     this.multiBalls=[];
-    this.poolObjectBalls=[];this.poolRackSide=1;  // alternating rack orientation
     this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
     this._loop=this._loop.bind(this);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,0);this._loop(0);
   }
@@ -1688,7 +1621,6 @@ class PongGame {
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
     this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;this.multiBalls=[];
-    this.poolObjectBalls=[];this.poolRackSide=1;
   }
   _spawnFrenzyBalls(){
     const skins=[...BALL_SKINS];
@@ -1710,20 +1642,7 @@ class PongGame {
       if(settings.effectsEnabled){for(let i=0;i<24;i++)this.particles.push(new Particle(this.ball.x,this.ball.y,this.ball.color));}
       const wr=this._checkWin();if(wr){this.winMessage='PLAYER '+wr+' WINS!';this.state='over';if(settings.soundEnabled)this.sound.play('win');}
     }
-    if(newState==='serving'){
-      this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);
-      this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,this.serveDirection);
-      this.multiBalls=[];
-      if(settings.gameVariant==='frenzy')this._spawnFrenzyBalls();
-      // Pool Mode: create object ball rack
-      if(settings.gameVariant==='pool'){
-        const fb=getPoolBounds();
-        const rackCX=this.poolRackSide>0?CONFIG.canvasWidth*0.64:CONFIG.canvasWidth*0.36;
-        const rackCY=fb.top+fb.height/2;
-        this.poolObjectBalls=createPoolRack(rackCX, rackCY, this.poolRackSide);
-        this.poolRackSide*=-1;  // alternate next round
-      }
-    }
+    if(newState==='serving'){this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,this.serveDirection);this.multiBalls=[];if(settings.gameVariant==='frenzy')this._spawnFrenzyBalls();}
     if(newState==='playing'&&prev!=='playing'){if(settings.soundEnabled)this.sound.play('start');}
   }
   _checkWin(){
@@ -1764,75 +1683,10 @@ class PongGame {
     for(let i=this.multiBalls.length-1;i>=0;i--){if(this._checkBall(this.multiBalls[i]))this.multiBalls.splice(i,1);}
   }
 
-  /* ---- POOL MODE: full update with object ball physics (substeps) ---- */
+  /* ---- POOL MODE: full update for a single ball in the pool table ---- */
   _updatePoolMode(){
-    const dtPerTick=this.tickRate/1000; // seconds per tick
-    const objs=this.poolObjectBalls;
-    
-    // Calculate substeps for fast-moving balls
-    const minR=getPoolObjectBallRadius();
-    let maxSpeed=0;
-    for(const ob of objs){if(ob.active&&!ob.pocketed){const s=Math.hypot(ob.vx,ob.vy);if(s>maxSpeed)maxSpeed=s;}}
-    if(this.ball.dx||this.ball.dy){const s=Math.hypot(this.ball.dx,this.ball.dy);if(s>maxSpeed)maxSpeed=s;}
-    const subSteps=Math.min(8, Math.max(1, Math.ceil(maxSpeed/(minR*0.4))));
-    
-    for(let ss=0; ss<subSteps; ss++){
-      // Move main ball
-      this.ball.prevX=this.ball.x;this.ball.prevY=this.ball.y;
-      this.ball.x+=this.ball.dx/subSteps;this.ball.y+=this.ball.dy/subSteps;
-      
-      // Paddle collisions (main ball)
-      this._poolResolveMainPaddles();
-      
-      // Move object balls
-      for(const ob of objs){
-        if(!ob.active||ob.pocketed)continue;
-        ob.prevX=ob.x;ob.prevY=ob.y;
-        ob.x+=ob.vx/subSteps;ob.y+=ob.vy/subSteps;
-      }
-      
-      // Ball-to-ball collisions (main ↔ objects + objects ↔ objects)
-      this._poolResolveBallCollisions(objs, subSteps);
-      
-      // Pocket checks
-      // Main ball pocket
-      const mp=checkPoolPocketHit(this.ball);
-      if(mp&&!this.ball.pocketed){
-        this._poolProcessObjBallPockets(objs, subSteps); // process any pending obj ball pockets first
-        this._handlePoolPocket(this.ball, mp);
-        this._poolFinishSubstep(objs, subSteps);
-        return;
-      }
-      // Object ball pockets
-      for(let i=objs.length-1; i>=0; i--){
-        const ob=objs[i];
-        if(!ob.active||ob.pocketed)continue;
-        const p=checkPoolPocketHit(ob);
-        if(p){this._handleObjectBallPocket(ob, p, i);}
-      }
-      
-      // Rail collisions for all active balls
-      this._resolvePoolRails(this.ball);
-      for(const ob of objs){
-        if(!ob.active||ob.pocketed)continue;
-        this._resolvePoolObjectRail(ob);
-      }
-      
-      // Paddle collisions for object balls
-      this._poolResolveObjectPaddles(objs, subSteps);
-    }
-    
-    // Post-substep: apply friction to object balls
-    this._poolApplyFriction(objs);
-    
-    // Check if all object balls are pocketed
-    if(objs.length>0&&objs.every(b=>b.pocketed||!b.active)){
-      // All cleared: re-rack
-      this.transition('serving');
-    }
-  }
-  
-  _poolResolveMainPaddles(){
+    this.ball.update();
+    // paddle collisions (same as normal, but we set lastTouchedBy per-ball)
     const bw=this.ball.size/2;
     const pL=this.paddleLeft,pR=this.paddleRight;
     if(this.ball.dx<0&&this.ball.x-bw<=pL.x+pL.width&&this.ball.x-bw>=pL.x){
@@ -1841,192 +1695,61 @@ class PongGame {
     if(this.ball.dx>0&&this.ball.x+bw>=pR.x&&this.ball.x+bw<=pR.x+pR.width){
       if(this.ball.y+bw>=pR.y&&this.ball.y-bw<=pR.y+pR.height){this._hitBall(this.ball,pR,-1);this.ball.lastTouchedBy='right';}
     }
+    // pocket detection (before rail — swept-segment anti-tunneling)
+    const pocket=checkPoolPocketHit(this.ball);
+    if(pocket){this._handlePoolPocket(this.ball,pocket);return;}
+    // rail collisions with pocket openings
+    this._resolvePoolRails(this.ball);
   }
-  
-  /** Object ball rail collision with energy loss */
-  _resolvePoolObjectRail(ob){
-    const r=ob.radius, fb=getPoolBounds();
-    if(ob.y-r<=fb.top&&!isInsideTopPoolPocketOpening(ob.x,r)){
-      ob.y=fb.top+r;if(ob.vy<0)ob.vy*=-(1-POOL_RACK_CONFIG.railRestitution);
+
+  /** Pool rail collisions: bounce from 4 sides, skipping pocket openings */
+  _resolvePoolRails(b){
+    const br=b.size/2, fb=getPoolBounds();
+    // TOP rail
+    if(b.y-br<=fb.top&&!isInsideTopPoolPocketOpening(b.x,br)){
+      b.y=fb.top+br;if(b.dy<0)b.dy=Math.abs(b.dy);
+      if(settings.soundEnabled)this.sound.play('wall');
     }
-    if(ob.y+r>=fb.bottom&&!isInsideBottomPoolPocketOpening(ob.x,r)){
-      ob.y=fb.bottom-r;if(ob.vy>0)ob.vy*=-(1-POOL_RACK_CONFIG.railRestitution);
+    // BOTTOM rail
+    if(b.y+br>=fb.bottom&&!isInsideBottomPoolPocketOpening(b.x,br)){
+      b.y=fb.bottom-br;if(b.dy>0)b.dy=-Math.abs(b.dy);
+      if(settings.soundEnabled)this.sound.play('wall');
     }
-    if(ob.x-r<=fb.left&&!isInsideLeftPoolPocketOpening(ob.y,r)){
-      ob.x=fb.left+r;if(ob.vx<0)ob.vx*=-(1-POOL_RACK_CONFIG.railRestitution);
+    // LEFT rail
+    if(b.x-br<=fb.left&&!isInsideLeftPoolPocketOpening(b.y,br)){
+      b.x=fb.left+br;if(b.dx<0)b.dx=Math.abs(b.dx);
+      if(settings.soundEnabled)this.sound.play('wall');
     }
-    if(ob.x+r>=fb.right&&!isInsideRightPoolPocketOpening(ob.y,r)){
-      ob.x=fb.right-r;if(ob.vx>0)ob.vx*=-(1-POOL_RACK_CONFIG.railRestitution);
+    // RIGHT rail
+    if(b.x+br>=fb.right&&!isInsideRightPoolPocketOpening(b.y,br)){
+      b.x=fb.right-br;if(b.dx>0)b.dx=-Math.abs(b.dx);
+      if(settings.soundEnabled)this.sound.play('wall');
     }
-    ob.x=Math.max(fb.left+r,Math.min(fb.right-r,ob.x));
-    ob.y=Math.max(fb.top+r,Math.min(fb.bottom-r,ob.y));
+    // clamp within bounds
+    b.x=Math.max(fb.left+br,Math.min(fb.right-br,b.x));
+    b.y=Math.max(fb.top+br,Math.min(fb.bottom-br,b.y));
   }
-  
-  /** Ball-to-ball collisions: main ↔ objects, and objects ↔ objects */
-  _poolResolveBallCollisions(objs, subSteps){
-    const main={x:this.ball.x,y:this.ball.y,radius:this.ball.size/2,vx:this.ball.dx/subSteps,vy:this.ball.dy/subSteps,size:this.ball.size};
-    // Main vs objects
-    for(const ob of objs){
-      if(!ob.active||ob.pocketed)continue;
-      this._poolCollidePair(main, ob, true);
+
+  /** Handle a ball being pocketed in pool mode */
+  _handlePoolPocket(b,pocket){
+    b.pocketed=true;b.dx=0;b.dy=0;b.x=pocket.x;b.y=pocket.y;
+    if(settings.soundEnabled)this.sound.play('paddle');   // reuse existing paddle-sound as pocket thud
+    if(settings.effectsEnabled&&b.color){
+      for(let i=0;i<12;i++)this.particles.push(new Particle(pocket.x,pocket.y,b.color));
     }
-    this.ball.x=main.x;this.ball.y=main.y;
-    this.ball.dx=main.vx*subSteps;this.ball.dy=main.vy*subSteps;
-    // Objects vs objects
-    for(let i=0; i<objs.length; i++){
-      if(!objs[i].active||objs[i].pocketed)continue;
-      for(let j=i+1; j<objs.length; j++){
-        if(!objs[j].active||objs[j].pocketed)continue;
-        this._poolCollidePair(objs[i], objs[j], false);
-      }
-    }
-  }
-  
-  /** Impulse-based collision between two circular balls */
-  _poolCollidePair(a, b, mainIsInvolved){
-    const dx=b.x-a.x, dy=b.y-a.y;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    const minDist=a.radius+b.radius;
-    if(dist>=minDist||dist<0.001)return;
-    const nx=dx/dist, ny=dy/dist;
-    // Separate
-    const overlap=minDist-dist;
-    const ma=a.radius*a.radius, mb=b.radius*b.radius, totalM=ma+mb;
-    a.x-=nx*overlap*(mb/totalM);a.y-=ny*overlap*(mb/totalM);
-    b.x+=nx*overlap*(ma/totalM);b.y+=ny*overlap*(ma/totalM);
-    // Relative velocity
-    const rv=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
-    if(rv<=0)return; // separating
-    const rest=POOL_RACK_CONFIG.objectBallRestitution;
-    const impulse=rv*(1+rest)/totalM;
-    a.vx-=impulse*mb*nx;a.vy-=impulse*mb*ny;
-    b.vx+=impulse*ma*nx;b.vy+=impulse*ma*ny;
-    // Ownership transfer
-    const impMag=Math.abs(rv);
-    if(impMag>=POOL_RACK_CONFIG.ownershipImpulseThreshold){
-      // main → object
-      if(mainIsInvolved && impMag>=POOL_RACK_CONFIG.breakImpulseMin){
-        if(this.ball.lastTouchedBy){
-          a.lastInfluencedBy=this.ball.lastTouchedBy;
-          b.lastInfluencedBy=this.ball.lastTouchedBy;
-        }
-      }
-      // object → object
-      if(!mainIsInvolved){
-        if(a.lastInfluencedBy && !b.lastInfluencedBy) b.lastInfluencedBy=a.lastInfluencedBy;
-        else if(!a.lastInfluencedBy && b.lastInfluencedBy) a.lastInfluencedBy=b.lastInfluencedBy;
-      }
-    }
-    // Wake if sleeping
-    a.sleepTimer=0;b.sleepTimer=0;
-    // Sound on strong collisions
-    if(impMag>0.8&&settings.soundEnabled) this.sound.play('wall');
-  }
-  
-  /** Paddle collisions for object balls */
-  _poolResolveObjectPaddles(objs, subSteps){
-    const pL=this.paddleLeft, pR=this.paddleRight;
-    for(const ob of objs){
-      if(!ob.active||ob.pocketed)continue;
-      this._poolObjPaddleHit(ob, pL, 'left', subSteps);
-      this._poolObjPaddleHit(ob, pR, 'right', subSteps);
-    }
-  }
-  
-  _poolObjPaddleHit(ob, p, side, subSteps){
-    const pr=p.y+p.height, pb=p.x+p.width;
-    // Simple circle vs rect
-    const cx=Math.max(p.x, Math.min(ob.x, pb));
-    const cy=Math.max(p.y, Math.min(ob.y, pr));
-    const dx=ob.x-cx, dy=ob.y-cy;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist>=ob.radius||dist<0.001)return;
-    // collision normal
-    const nx=dx/dist, ny=dy/dist;
-    // Separate
-    ob.x+=nx*(ob.radius-dist);
-    ob.y+=ny*(ob.radius-dist);
-    // Reflect with paddle influence
-    const pv=p.vy/subSteps;
-    const rv=ob.vx*nx+ob.vy*ny-pv*ny;
-    if(rv>0)return;
-    ob.vx-=rv*nx*2*POOL_RACK_CONFIG.paddleRestitution;
-    ob.vy-=rv*ny*2*POOL_RACK_CONFIG.paddleRestitution;
-    ob.vy+=pv*0.3; // paddle vertical influence
-    ob.lastInfluencedBy=side;
-    ob.sleepTimer=0;
-    if(settings.soundEnabled) this.sound.play('paddle');
-  }
-  
-  /** Handle an object ball entering a pocket */
-  _handleObjectBallPocket(ob, pocket, idx){
-    if(ob.animTimer>0)return; // already animating
-    ob.pocketed=true;ob.vx=0;ob.vy=0;
-    ob.pocketTarget={x:pocket.x,y:pocket.y};
-    ob.animTimer=POOL_RACK_CONFIG.pocketAnimDuration;
-    if(settings.soundEnabled)this.sound.play('paddle');
-    if(settings.effectsEnabled){
-      for(let i=0;i<8;i++)this.particles.push(new Particle(pocket.x,pocket.y,'#ffffff'));
-    }
-    // Score
-    if(ob.lastInfluencedBy==='left'){
+    // scoring
+    if(b.lastTouchedBy==='left'){
       this.paddleLeft.score++;
-      const wr=this._checkWin();
-      if(wr){this.winMessage='PLAYER '+wr+' WINS!';this.state='over';if(settings.soundEnabled)this.sound.play('win');}
-    }else if(ob.lastInfluencedBy==='right'){
+      this.serveDirection=1;
+      this.transition('goal');
+    }else if(b.lastTouchedBy==='right'){
       this.paddleRight.score++;
-      const wr=this._checkWin();
-      if(wr){this.winMessage='PLAYER '+wr+' WINS!';this.state='over';if(settings.soundEnabled)this.sound.play('win');}
-    }
-  }
-  
-  /** Process pending object ball pocket animations and clean up completed ones */
-  _poolProcessObjBallPockets(objs, subSteps){
-    for(let i=objs.length-1; i>=0; i--){
-      const ob=objs[i];
-      if(!ob.pocketed||ob.animTimer<=0)continue;
-      ob.animTimer--;
-      // Animate toward pocket center
-      if(ob.pocketTarget){
-        const t=1-ob.animTimer/POOL_RACK_CONFIG.pocketAnimDuration;
-        ob.x=ob.prevX+(ob.pocketTarget.x-ob.prevX)*t;
-        ob.y=ob.prevY+(ob.pocketTarget.y-ob.prevY)*t;
-      }
-      if(ob.animTimer<=0){
-        ob.active=false;
-      }
-    }
-  }
-  
-  /** Finish substep: handle pocket animations */
-  _poolFinishSubstep(objs, subSteps){
-    for(let i=objs.length-1; i>=0; i--){
-      const ob=objs[i];
-      if(ob.pocketed&&ob.animTimer>0){
-        ob.animTimer--;
-        if(ob.pocketTarget){
-          const t=1-ob.animTimer/POOL_RACK_CONFIG.pocketAnimDuration;
-          ob.x=ob.prevX+(ob.pocketTarget.x-ob.prevX)*t;
-          ob.y=ob.prevY+(ob.pocketTarget.y-ob.prevY)*t;
-        }
-        if(ob.animTimer<=0)ob.active=false;
-      }
-    }
-  }
-  
-  /** Apply friction to object balls after all substeps */
-  _poolApplyFriction(objs){
-    for(const ob of objs){
-      if(!ob.active||ob.pocketed)continue;
-      const speed=Math.hypot(ob.vx,ob.vy);
-      if(speed<POOL_RACK_CONFIG.stopSpeed){
-        ob.vx=0;ob.vy=0;
-        ob.sleepTimer++;
-        continue;
-      }
-      ob.sleepTimer=0;
-      const f=POOL_RACK_CONFIG.frictionPerTick;
-      ob.vx*=f;ob.vy*=f;ob.angularVel*=f;
+      this.serveDirection=-1;
+      this.transition('goal');
+    }else{
+      // untouched: no score, just re-serve
+      this.serveDirection=Math.random()<.5?1:-1;
+      this.transition('serving');
     }
   }
   _ballCollision(a,b){
@@ -2183,24 +1906,6 @@ class PongGame {
     }
     this.ball.drawInterpolated(ctx,ts,alpha);
     for(const b of this.multiBalls)b.drawInterpolated(ctx,ts,alpha);
-    // pool object balls (rendered behind main ball — draw first)
-    if(settings.gameVariant==='pool'){
-      for(const ob of this.poolObjectBalls){
-        if(!ob.active)continue;
-        const s=ob.radius*2;
-        const ia=ob.pocketed?Math.max(0,1-ob.animTimer/POOL_RACK_CONFIG.pocketAnimDuration):1;
-        ctx.save();ctx.globalAlpha=ia;
-        if(ob.pocketed&&ob.animTimer>0){
-          // shrinking into pocket
-          const t=ob.animTimer/POOL_RACK_CONFIG.pocketAnimDuration;
-          const sr=ob.radius*2*(0.3+0.7*t);
-          BallRenderer.draw(ctx,ob.x,ob.y,sr,'#ffffff',ob.skin,ob.rotation);
-        }else{
-          BallRenderer.draw(ctx,ob.x,ob.y,s,ob.active?'#ffffff':'#000',ob.skin,ob.rotation);
-        }
-        ctx.restore();
-      }
-    }
     for(const p of this.particles)p.draw(ctx,alpha);
     // power-up orb
     if(this.powerUp&&this.state==='playing'){

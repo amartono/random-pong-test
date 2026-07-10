@@ -272,6 +272,20 @@ const BALL_SKINS = [
   { key:'soccer',     label:'SOCCER' },
   { key:'tennis',     label:'TENNIS' },
   { key:'8ball',      label:'8-BALL' },
+  { key:'1ball',      label:'1-BALL' },
+  { key:'2ball',      label:'2-BALL' },
+  { key:'3ball',      label:'3-BALL' },
+  { key:'4ball',      label:'4-BALL' },
+  { key:'5ball',      label:'5-BALL' },
+  { key:'6ball',      label:'6-BALL' },
+  { key:'7ball',      label:'7-BALL' },
+  { key:'9ball',      label:'9-BALL' },
+  { key:'10ball',     label:'10-BALL' },
+  { key:'11ball',     label:'11-BALL' },
+  { key:'12ball',     label:'12-BALL' },
+  { key:'13ball',     label:'13-BALL' },
+  { key:'14ball',     label:'14-BALL' },
+  { key:'15ball',     label:'15-BALL' },
   { key:'beachball',  label:'BEACH' },
   { key:'earth',      label:'EARTH' },
   { key:'mars',       label:'MARS' },
@@ -798,6 +812,20 @@ const BallRenderer = {
         this._tennis(ctx,x,y,h,c);break;
       case'8ball':
         this._8ball(ctx,x,y,h);break;
+      case'1ball':this._billiardSolid(ctx,x,y,h,'#f2d21b',1);break;       // yellow
+      case'2ball':this._billiardSolid(ctx,x,y,h,'#2454c6',2);break;       // blue
+      case'3ball':this._billiardSolid(ctx,x,y,h,'#cf2f2f',3);break;       // red
+      case'4ball':this._billiardSolid(ctx,x,y,h,'#6b3ea6',4);break;       // purple
+      case'5ball':this._billiardSolid(ctx,x,y,h,'#e47b22',5);break;       // orange
+      case'6ball':this._billiardSolid(ctx,x,y,h,'#2f8a4a',6);break;       // green
+      case'7ball':this._billiardSolid(ctx,x,y,h,'#7f2631',7);break;       // maroon
+      case'9ball':this._billiardStripe(ctx,x,y,h,'#f2d21b',9);break;     // yellow stripe
+      case'10ball':this._billiardStripe(ctx,x,y,h,'#2454c6',10);break;    // blue stripe
+      case'11ball':this._billiardStripe(ctx,x,y,h,'#cf2f2f',11);break;    // red stripe
+      case'12ball':this._billiardStripe(ctx,x,y,h,'#6b3ea6',12);break;    // purple stripe
+      case'13ball':this._billiardStripe(ctx,x,y,h,'#e47b22',13);break;    // orange stripe
+      case'14ball':this._billiardStripe(ctx,x,y,h,'#2f8a4a',14);break;    // green stripe
+      case'15ball':this._billiardStripe(ctx,x,y,h,'#7f2631',15);break;    // maroon stripe
       case'beachball':
         this._beachball(ctx,x,y,h);break;
       case'earth':
@@ -992,15 +1020,59 @@ const BallRenderer = {
 
   // -- 8-ball: glossy black, white number circle with border, specular highlight
   _8ball(ctx,x,y,r){
+    this._billiardSolid(ctx,x,y,r,'#111111',8);
+  },
+
+  /** Shared billiard solid ball (1–8): colored sphere + white number patch + number */
+  _billiardSolid(ctx,x,y,r,baseColor,num){
+    const l=lighten(baseColor,.15), d=darken(baseColor,.25);
     const grad=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.06,x,y,r);
-    grad.addColorStop(0,'#333');grad.addColorStop(.82,'#111');grad.addColorStop(1,'#000');
+    grad.addColorStop(0,l);grad.addColorStop(.82,baseColor);grad.addColorStop(1,d);
     ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#444';ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle=darken(baseColor,.3);ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    // white number patch
     ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#333';ctx.lineWidth=.7;ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle='#111';ctx.font=`900 ${r*1.05}px Arial,Helvetica,sans-serif`;
-    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('8',x,y+1);
+    ctx.strokeStyle=darken(baseColor,.4);ctx.lineWidth=.7;ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.stroke();
+    // number (double-digit slightly smaller)
+    const fs=num>=10?r*.85:r*1.05;
+    ctx.fillStyle=darken(baseColor,.2);ctx.font=`900 ${fs}px Arial,Helvetica,sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(num),x,y+1);
+    // highlight ellipse
     ctx.fillStyle='rgba(255,255,255,.22)';ctx.beginPath();ctx.ellipse(x-r*.20,y-r*.28,r*.18,r*.10,-.4,0,Math.PI*2);ctx.fill();
+  },
+
+  /** Shared billiard striped ball (9–15): white sphere + colored band + number */
+  _billiardStripe(ctx,x,y,r,stripeColor,num){
+    // white base sphere with shading
+    const wg=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.06,x,y,r);
+    wg.addColorStop(0,'#ffffff');wg.addColorStop(.55,'#f0f0f0');wg.addColorStop(.85,'#e0e0e0');wg.addColorStop(1,'#c8c8c8');
+    ctx.fillStyle=wg;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    // colored stripe band (clipped inside ball)
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    const sH=r*.46;  // stripe half-height
+    const sg=ctx.createLinearGradient(x,y-sH,x,y+sH);
+    sg.addColorStop(0,'#c8c8c8');
+    sg.addColorStop(.12,lighten(stripeColor,.1));
+    sg.addColorStop(.5,stripeColor);
+    sg.addColorStop(.88,lighten(stripeColor,.1));
+    sg.addColorStop(1,darken(stripeColor,.1));
+    ctx.fillStyle=sg;ctx.fillRect(x-r,y-sH,r*2,sH*2);
+    // soft shadow at stripe top/bottom for 3D wrap
+    const st=ctx.createLinearGradient(x,y-sH,x,y);
+    st.addColorStop(0,'rgba(255,255,255,.15)');st.addColorStop(.15,'rgba(0,0,0,.08)');st.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=st;ctx.fillRect(x-r,y-sH,r*2,sH);
+    ctx.restore();
+    // outline
+    ctx.strokeStyle='#aaa';ctx.lineWidth=.8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    // white number patch (same as solids)
+    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=darken(stripeColor,.3);ctx.lineWidth=.7;ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.stroke();
+    // number
+    const fs=num>=10?r*.85:r*1.05;
+    ctx.fillStyle=darken(stripeColor,.15);ctx.font=`900 ${fs}px Arial,Helvetica,sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(num),x,y+1);
+    // highlight ellipse
+    ctx.fillStyle='rgba(255,255,255,.25)';ctx.beginPath();ctx.ellipse(x-r*.20,y-r*.28,r*.18,r*.10,-.4,0,Math.PI*2);ctx.fill();
   },
 
   // -- beachball: 6 alternating panels, 3D shading, white pole dots, valve dot

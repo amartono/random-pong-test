@@ -147,7 +147,7 @@ function checkPoolPocketHit(ball){
 }
 
 /* ---- pool object-ball rack system ---- */
-const POOL_RACK = { objectRadius:10, gap:0.6, restitution:0.92, railBounce:0.82, frictionPerTick:0.987, stopSpeed:0.06, ownershipThreshold:0.25, breakThreshold:1.5, paddleRestitution:0.95, animTicks:18 };
+const POOL_RACK = { objectRadius:8, gap:0.6, restitution:0.92, railBounce:0.82, frictionPerTick:0.987, stopSpeed:0.06, ownershipThreshold:0.25, breakThreshold:1.5, paddleRestitution:0.95, animTicks:18 };
 function choosePoolRackSide(){return Math.random()<0.5?'right':'left';}
 function getPoolRackPositions(side){
   const r=POOL_RACK.objectRadius, gap=POOL_RACK.gap, fb=getPoolBounds();
@@ -1792,21 +1792,33 @@ class PongGame {
     const rb=b.radius!==undefined?b.radius:b.size/2;
     const dx=b.x-a.x,dy=b.y-a.y,dist=Math.hypot(dx,dy),min=ra+rb;
     if(dist>=min||dist<0.001)return;
+    // Save main ball speed before impulse
+    let savedSpeed=0;
+    if(mainInvolved){savedSpeed=Math.hypot(a.dx,a.dy);if(!Number.isFinite(savedSpeed)||savedSpeed<0.0001)savedSpeed=a.speed||CONFIG.ballSpeedInitial;}
     const nx=dx/dist,ny=dy/dist,overlap=min-dist;
     a.x-=nx*overlap*rb/(ra+rb);a.y-=ny*overlap*rb/(ra+rb);
     b.x+=nx*overlap*ra/(ra+rb);b.y+=ny*overlap*ra/(ra+rb);
     const avx=a.vx!==undefined?a.vx:a.dx,avy=a.vy!==undefined?a.vy:a.dy;
     const bvx=b.vx!==undefined?b.vx:b.dx,bvy=b.vy!==undefined?b.vy:b.dy;
-    const rv=(avx-bvx)*nx+(avy-bvy)*ny;if(rv<=0)return;
+    const rv=(avx-bvx)*nx+(avy-bvy)*ny;if(rv<=0){if(mainInvolved)this._poolRestoreSpeed(a,savedSpeed);return;}
     const ma=ra*ra,mb=rb*rb,tm=ma+mb,imp=rv*(1+POOL_RACK.restitution)/tm;
     if(a.vx!==undefined){a.vx-=imp*mb*nx;a.vy-=imp*mb*ny;}else{a.dx-=imp*mb*nx;a.dy-=imp*mb*ny;}
     if(b.vx!==undefined){b.vx+=imp*ma*nx;b.vy+=imp*ma*ny;}else{b.dx+=imp*ma*nx;b.dy+=imp*ma*ny;}
+    // Restore main ball speed after impulse
+    if(mainInvolved)this._poolRestoreSpeed(a,savedSpeed);
     // Ownership
     const mag=Math.abs(rv);
     if(mainInvolved&&mag>=POOL_RACK.breakThreshold&&this.ball.lastTouchedBy){b.lastInfluencedBy=this.ball.lastTouchedBy;}
     if(!mainInvolved&&mag>=POOL_RACK.ownershipThreshold){if(a.lastInfluencedBy&&!b.lastInfluencedBy)b.lastInfluencedBy=a.lastInfluencedBy;else if(!a.lastInfluencedBy&&b.lastInfluencedBy)a.lastInfluencedBy=b.lastInfluencedBy;}
     if(b.sleeping)b.sleeping=false;
     if(a.sleepTimer!==undefined)a.sleepTimer=0;if(b.sleepTimer!==undefined)b.sleepTimer=0;
+  }
+
+  _poolRestoreSpeed(main,savedSpeed){
+    const post=Math.hypot(main.dx,main.dy);
+    if(post>0.0001){const s=savedSpeed/post;main.dx*=s;main.dy*=s;}
+    else{main.dx=savedSpeed*(main.dx>=0?1:-1)||savedSpeed;main.dy=0;}
+    main.speed=Math.hypot(main.dx,main.dy);
   }
 
   /** Main ball rail collisions with pocket openings */

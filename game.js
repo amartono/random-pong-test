@@ -163,9 +163,9 @@ function createPoolObjectBalls(side){
   return layout.map((n,i)=>({number:n,skin:n+'ball',x:pos[i].x,y:pos[i].y,prevX:pos[i].x,prevY:pos[i].y,vx:0,vy:0,radius:r,angle:0,spin:0,active:true,pocketed:false,lastInfluencedBy:null,sleeping:false,sleepTimer:0,animTimer:0,pocketTarget:null}));
 }
 function createFreshPoolRack(){return createPoolObjectBalls(choosePoolRackSide());}
-function poolMainBallSpawn(side,pL,pR,bSize){
+function poolMainBallSpawn(serveSide,pL,pR,bSize){
   const r=bSize/2, gap=8, fb=getPoolBounds();
-  if(side==='right'){const x=pL.x+pL.width+r+gap,y=Math.max(fb.top+r,Math.min(fb.bottom-r,pL.y+pL.height/2));return{x,y,vxDir:1};}
+  if(serveSide==='left'){const x=pL.x+pL.width+r+gap,y=Math.max(fb.top+r,Math.min(fb.bottom-r,pL.y+pL.height/2));return{x,y,vxDir:1};}
   else{const x=pR.x-r-gap,y=Math.max(fb.top+r,Math.min(fb.bottom-r,pR.y+pR.height/2));return{x,y,vxDir:-1};}
 }
 function launchPoolMainBallTowardRack(ball,rackSide){

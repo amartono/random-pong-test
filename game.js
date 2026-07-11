@@ -160,7 +160,7 @@ function getPoolRackPositions(side){
 function getPoolRackApex(side){return getPoolRackPositions(side)[0];}
 function createPoolObjectBalls(side){
   const pos=getPoolRackPositions(side), layout=[1,9,2,4,8,11,14,5,12,7,6,15,10,13,3], r=POOL_RACK.objectRadius;
-  return layout.map((n,i)=>({number:n,skin:n+'ball',x:pos[i].x,y:pos[i].y,prevX:pos[i].x,prevY:pos[i].y,vx:0,vy:0,radius:r,active:true,pocketed:false,lastInfluencedBy:null,sleeping:false,sleepTimer:0,animTimer:0,pocketTarget:null}));
+  return layout.map((n,i)=>({number:n,skin:n+'ball',x:pos[i].x,y:pos[i].y,prevX:pos[i].x,prevY:pos[i].y,vx:0,vy:0,radius:r,angle:0,spin:0,active:true,pocketed:false,lastInfluencedBy:null,sleeping:false,sleepTimer:0,animTimer:0,pocketTarget:null}));
 }
 function createFreshPoolRack(){return createPoolObjectBalls(choosePoolRackSide());}
 function poolMainBallSpawn(side,pL,pR,bSize){
@@ -172,6 +172,60 @@ function launchPoolMainBallTowardRack(ball,rackSide){
   const apex=getPoolRackApex(rackSide),dx=apex.x-ball.x,dy=apex.y-ball.y,len=Math.hypot(dx,dy),spd=ball.speed||CONFIG.ballSpeedInitial;
   ball.dx=dx/len*spd;ball.dy=dy/len*spd;
 }
+
+/* ---- pool serve randomization ---- */
+function rndRange(a,b){return a+Math.random()*(b-a);}
+const POOL_SERVE = {
+  freshSpeedMin:0.94, freshSpeedMax:1.06, respawnSpeedMin:0.94, respawnSpeedMax:1.06,
+  breakOffset:POOL_RACK.objectRadius*0.45, breakJitter:Math.PI/180*0.75,
+  respawnJitter:Math.PI/180*5, respawnYJitterRatio:0.08,
+};
+function randomPoolLaunchSpeed(type){
+  const s=CONFIG.ballSpeedInitial;
+  const mn=type==='fresh'?POOL_SERVE.freshSpeedMin:POOL_SERVE.respawnSpeedMin;
+  const mx=type==='fresh'?POOL_SERVE.freshSpeedMax:POOL_SERVE.respawnSpeedMax;
+  return Math.min(CONFIG.ballSpeedMax,s*rndRange(mn,mx));
+}
+function launchFreshPoolBreak(ball,rackSide){
+  const apex=getPoolRackApex(rackSide);
+  const bx=apex.x-ball.x,by=apex.y-ball.y,bl=Math.hypot(bx,by);
+  const nx=bx/bl,ny=by/bl;
+  const px=-ny,py=nx;
+  const offset=rndRange(-POOL_SERVE.breakOffset,POOL_SERVE.breakOffset);
+  const tx=apex.x+px*offset,ty=apex.y+py*offset;
+  const dx=tx-ball.x,dy=ty-ball.y,dl=Math.hypot(dx,dy);
+  const jitter=rndRange(-POOL_SERVE.breakJitter,POOL_SERVE.breakJitter);
+  const rx=dx/dl*Math.cos(jitter)-dy/dl*Math.sin(jitter);
+  const ry=dx/dl*Math.sin(jitter)+dy/dl*Math.cos(jitter);
+  const spd=randomPoolLaunchSpeed('fresh');
+  ball.speed=spd;ball.dx=rx*spd;ball.dy=ry*spd;
+}
+function launchRespawnPoolMainBall(ball,serveSide,objs){
+  const fb=getPoolBounds();
+  const cx=fb.left+fb.width/2;
+  const cy=fb.top+fb.height/2+rndRange(-fb.height*POOL_SERVE.respawnYJitterRatio,fb.height*POOL_SERVE.respawnYJitterRatio);
+  const dx=cx-ball.x,dy=cy-ball.y,dl=Math.hypot(dx,dy);
+  const jitter=rndRange(-POOL_SERVE.respawnJitter,POOL_SERVE.respawnJitter);
+  const rx=dx/dl*Math.cos(jitter)-dy/dl*Math.sin(jitter);
+  const ry=dx/dl*Math.sin(jitter)+dy/dl*Math.cos(jitter);
+  const spd=randomPoolLaunchSpeed('respawn');
+  ball.speed=spd;
+  if(serveSide==='left'){ball.dx=Math.abs(rx*spd);ball.dy=ry/1>1e-10?ry*spd:0;}
+  else{ball.dx=-Math.abs(rx*spd);ball.dy=ry/1>1e-10?ry*spd:0;}
+}
+
+/* ---- pool spin config ---- */
+const POOL_SPIN = {
+  objDamping:0.985, spinStop:0.001, visualRoll:0.35,
+  paddleSpin:0.025, paddleVelSpin:0.012, ballFriction:0.08, ballSpinTransfer:0.18,
+  railSpinTransfer:0.04, railSpinRetention:0.72, maxObjSpin:0.35, maxMainSpin:0.45,
+};
+
+/* ---- pool sound config ---- */
+const POOL_SOUND = {
+  minClack:0.45, fullVol:6, cooldownTicks:4, maxPerTick:5,
+  minGain:0.025, maxGain:0.12, pitchMin:0.92, pitchMax:1.08,
+};
 
 /* ------------------------------------------------------------------ */
 /*  COLOR HELPERS                                                      */
@@ -1396,6 +1450,29 @@ class SoundEngine {
       case'start':n(440,t,.12,.1,'triangle');n(554,t+.12,.12,.1,'triangle');n(660,t+.24,.12,.1,'triangle');break;
     }
   }
+  playPoolClack(strength){
+    if(!this.initialized)this.init();if(!this.ctx)return;if(this.ctx.state==='suspended')this.ctx.resume();
+    const t=this.ctx.currentTime;
+    const g=this.ctx.createGain();
+    const vol=POOL_SOUND.minGain+(POOL_SOUND.maxGain-POOL_SOUND.minGain)*(strength||0.5);
+    g.gain.setValueAtTime(vol*0.7,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.035);
+    g.connect(this.ctx.destination);
+    // High transient click
+    const o=this.ctx.createOscillator();
+    const freq=1200*rndRange(POOL_SOUND.pitchMin,POOL_SOUND.pitchMax);
+    o.type='triangle';o.frequency.setValueAtTime(freq,t);
+    o.frequency.exponentialRampToValueAtTime(freq*0.3,t+0.03);
+    o.connect(g);o.start(t);o.stop(t+0.04);
+    // Noise burst
+    const buf=this.ctx.createBuffer(1,this.ctx.sampleRate*0.02,this.ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)*0.3;
+    const bs=this.ctx.createBufferSource();bs.buffer=buf;
+    const bg=this.ctx.createGain();bg.gain.setValueAtTime(vol*0.5,t);bg.gain.exponentialRampToValueAtTime(0.001,t+0.025);
+    const bf=this.ctx.createBiquadFilter();bf.type='bandpass';bf.frequency.setValueAtTime(2500,t);bf.Q.setValueAtTime(2,t);
+    bs.connect(bf).connect(bg).connect(this.ctx.destination);
+    bs.start(t);bs.stop(t+0.025);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1591,7 +1668,7 @@ class PongGame {
     this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;
     this.multiBalls=[];this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();
-    this.poolMainRespawn=null;this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
+    this.poolServeSide='left';this.poolMainRespawn=null;this.poolClackTick=0;this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
     this._loop=this._loop.bind(this);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,0);this._loop(0);
   }
 
@@ -1648,7 +1725,7 @@ class PongGame {
     this.lastHitBy=null;this.powerUp=null;this.puSpawnTimer=240;
     this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;this.multiBalls=[];
-    this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();this.poolMainRespawn=null;
+    this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();this.poolServeSide='left';this.poolMainRespawn=null;this.poolClackTick=0;
   }
   _spawnFrenzyBalls(){
     const skins=[...BALL_SKINS];
@@ -1678,23 +1755,25 @@ class PongGame {
       // Pool Mode: rack + side-spawn
       if(settings.gameVariant==='pool'){
         if(this.poolMainRespawn){
-          // Main ball only respawn — keep existing rack side and object balls
-          const sp=poolMainBallSpawn(this.poolRackSide,this.paddleLeft,this.paddleRight,this.ball.size);
+          // Main ball only respawn — independent 50/50 serve side
+          this.poolServeSide=Math.random()<0.5?'left':'right';
+          const sp=poolMainBallSpawn(this.poolServeSide,this.paddleLeft,this.paddleRight,this.ball.size);
           this.ball.x=sp.x;this.ball.y=sp.y;this.ball.prevX=sp.x;this.ball.prevY=sp.y;
-          this.ball.dx=this.ball.dy=0;this.ball.speed=CONFIG.ballSpeedInitial;
-          launchPoolMainBallTowardRack(this.ball,this.poolRackSide);
-          this.ball.lastTouchedBy=this.poolRackSide==='right'?'left':'right';
+          this.ball.dx=this.ball.dy=0;this.ball.spin=0;this.ball.angle=0;
+          launchRespawnPoolMainBall(this.ball,this.poolServeSide,this.poolObjBalls);
+          this.ball.lastTouchedBy=this.poolServeSide;
           this.poolMainRespawn=null;
         }else{
           // Full rack: create new object balls
           this.poolRackSide=choosePoolRackSide();
           this.poolObjBalls=createPoolObjectBalls(this.poolRackSide);
           // Spawn main ball opposite side
-          const sp=poolMainBallSpawn(this.poolRackSide,this.paddleLeft,this.paddleRight,this.ball.size);
+          this.poolServeSide=this.poolRackSide==='right'?'left':'right';
+          const sp=poolMainBallSpawn(this.poolServeSide,this.paddleLeft,this.paddleRight,this.ball.size);
           this.ball.x=sp.x;this.ball.y=sp.y;this.ball.prevX=sp.x;this.ball.prevY=sp.y;
-          this.ball.dx=this.ball.dy=0;this.ball.speed=CONFIG.ballSpeedInitial;
-          launchPoolMainBallTowardRack(this.ball,this.poolRackSide);
-          this.ball.lastTouchedBy=this.poolRackSide==='right'?'left':'right';
+          this.ball.dx=this.ball.dy=0;this.ball.spin=0;this.ball.angle=0;
+          launchFreshPoolBreak(this.ball,this.poolRackSide);
+          this.ball.lastTouchedBy=this.poolServeSide;
         }
       }
     }
@@ -1767,6 +1846,7 @@ class PongGame {
     if(objs.length>0&&objs.every(b=>b.pocketed||!b.active)){
       this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();this.transition('serving');
     }
+    this._poolFlushClacks();
   }
 
   _poolUpdateObjBalls(objs){
@@ -1774,10 +1854,13 @@ class PongGame {
       if(!ob.active||ob.pocketed){if(ob.animTimer>0){ob.animTimer--;if(ob.animTimer<=0)ob.active=false;}continue;}
       ob.prevX=ob.x;ob.prevY=ob.y;
       ob.x+=ob.vx;ob.y+=ob.vy;
+      // Visual rolling rotation
+      const trav=Math.hypot(ob.x-ob.prevX,ob.y-ob.prevY);
+      ob.angle+=Math.sign(ob.vx||ob.vy||1)*trav/ob.radius*POOL_SPIN.visualRoll+ob.spin;
       // Friction
       const spd=Math.hypot(ob.vx,ob.vy);
-      if(spd<POOL_RACK.stopSpeed){ob.vx=0;ob.vy=0;ob.sleeping=true;}
-      else{ob.sleeping=false;const f=POOL_RACK.frictionPerTick;ob.vx*=f;ob.vy*=f;}
+      if(spd<POOL_RACK.stopSpeed&&Math.abs(ob.spin)<POOL_SPIN.spinStop){ob.vx=0;ob.vy=0;ob.spin=0;ob.sleeping=true;}
+      else{ob.sleeping=false;const f=POOL_RACK.frictionPerTick;ob.vx*=f;ob.vy*=f;ob.spin*=POOL_SPIN.objDamping;}
     }
   }
 
@@ -1788,6 +1871,7 @@ class PongGame {
   }
 
   _poolPairCollision(a,b,mainInvolved){
+    // Reset clack counter each tick via poolClackTick
     const ra=a.radius!==undefined?a.radius:a.size/2;
     const rb=b.radius!==undefined?b.radius:b.size/2;
     const dx=b.x-a.x,dy=b.y-a.y,dist=Math.hypot(dx,dy),min=ra+rb;
@@ -1806,6 +1890,21 @@ class PongGame {
     if(b.vx!==undefined){b.vx+=imp*ma*nx;b.vy+=imp*ma*ny;}else{b.dx+=imp*ma*nx;b.dy+=imp*ma*ny;}
     // Restore main ball speed after impulse
     if(mainInvolved)this._poolRestoreSpeed(a,savedSpeed);
+    // Spin transfer (tangential)
+    const avx2=a.vx!==undefined?a.vx:a.dx,avy2=a.vy!==undefined?a.vy:a.dy;
+    const bvx2=b.vx!==undefined?b.vx:b.dx,bvy2=b.vy!==undefined?b.vy:b.dy;
+    const tx=-ny,ty=nx;
+    const atv=avx2*tx+avy2*ty,btv=bvx2*tx+bvy2*ty;
+    const rtv=atv-btv+(a.spin!==undefined?a.spin*ra:0)+(b.spin!==undefined?b.spin*rb:0);
+    const spinImp=Math.abs(rtv)*POOL_SPIN.ballFriction;
+    if(spinImp>1e-6){
+      if(a.spin!==undefined){a.spin+=spinImp*POOL_SPIN.ballSpinTransfer/rb;a.spin=Math.max(-POOL_SPIN.maxObjSpin,Math.min(POOL_SPIN.maxObjSpin,a.spin));}
+      else{a.spin+=spinImp*POOL_SPIN.ballSpinTransfer/ra;a.spin=Math.max(-POOL_SPIN.maxMainSpin,Math.min(POOL_SPIN.maxMainSpin,a.spin));}
+      if(b.spin!==undefined){b.spin-=spinImp*POOL_SPIN.ballSpinTransfer/ra;b.spin=Math.max(-POOL_SPIN.maxObjSpin,Math.min(POOL_SPIN.maxObjSpin,b.spin));}
+      else{b.spin-=spinImp*POOL_SPIN.ballSpinTransfer/rb;b.spin=Math.max(-POOL_SPIN.maxMainSpin,Math.min(POOL_SPIN.maxMainSpin,b.spin));}
+    }
+    // Clack sound
+    if(settings.soundEnabled&&Math.abs(rv)>POOL_SOUND.minClack)this._poolQueueClack(Math.abs(rv));
     // Ownership
     const mag=Math.abs(rv);
     if(mainInvolved&&mag>=POOL_RACK.breakThreshold&&this.ball.lastTouchedBy){b.lastInfluencedBy=this.ball.lastTouchedBy;}
@@ -1834,10 +1933,10 @@ class PongGame {
 
   _poolObjRail(ob){
     const r=ob.radius,fb=getPoolBounds();
-    if(ob.y-r<=fb.top&&!isInsideTopPoolPocketOpening(ob.x,r)){ob.y=fb.top+r;if(ob.vy<0)ob.vy*=-POOL_RACK.railBounce;ob.prevY=ob.y;}
-    if(ob.y+r>=fb.bottom&&!isInsideBottomPoolPocketOpening(ob.x,r)){ob.y=fb.bottom-r;if(ob.vy>0)ob.vy*=-POOL_RACK.railBounce;ob.prevY=ob.y;}
-    if(ob.x-r<=fb.left&&!isInsideLeftPoolPocketOpening(ob.y,r)){ob.x=fb.left+r;if(ob.vx<0)ob.vx*=-POOL_RACK.railBounce;ob.prevX=ob.x;}
-    if(ob.x+r>=fb.right&&!isInsideRightPoolPocketOpening(ob.y,r)){ob.x=fb.right-r;if(ob.vx>0)ob.vx*=-POOL_RACK.railBounce;ob.prevX=ob.x;}
+    if(ob.y-r<=fb.top&&!isInsideTopPoolPocketOpening(ob.x,r)){ob.y=fb.top+r;if(ob.vy<0)ob.vy*=-POOL_RACK.railBounce;ob.vx+=ob.spin*r*POOL_SPIN.railSpinTransfer;ob.spin*=POOL_SPIN.railSpinRetention;ob.prevY=ob.y;}
+    if(ob.y+r>=fb.bottom&&!isInsideBottomPoolPocketOpening(ob.x,r)){ob.y=fb.bottom-r;if(ob.vy>0)ob.vy*=-POOL_RACK.railBounce;ob.vx-=ob.spin*r*POOL_SPIN.railSpinTransfer;ob.spin*=POOL_SPIN.railSpinRetention;ob.prevY=ob.y;}
+    if(ob.x-r<=fb.left&&!isInsideLeftPoolPocketOpening(ob.y,r)){ob.x=fb.left+r;if(ob.vx<0)ob.vx*=-POOL_RACK.railBounce;ob.vy-=ob.spin*r*POOL_SPIN.railSpinTransfer;ob.spin*=POOL_SPIN.railSpinRetention;ob.prevX=ob.x;}
+    if(ob.x+r>=fb.right&&!isInsideRightPoolPocketOpening(ob.y,r)){ob.x=fb.right-r;if(ob.vx>0)ob.vx*=-POOL_RACK.railBounce;ob.vy+=ob.spin*r*POOL_SPIN.railSpinTransfer;ob.spin*=POOL_SPIN.railSpinRetention;ob.prevX=ob.x;}
     ob.x=Math.max(fb.left+r,Math.min(fb.right-r,ob.x));ob.y=Math.max(fb.top+r,Math.min(fb.bottom-r,ob.y));
   }
 
@@ -1851,6 +1950,11 @@ class PongGame {
       const rv=ob.vx*nx+ob.vy*ny-p.vy*ny;if(rv>0)continue;
       ob.vx-=rv*nx*2*POOL_RACK.paddleRestitution;ob.vy-=rv*ny*2*POOL_RACK.paddleRestitution;
       ob.lastInfluencedBy=s;ob.sleeping=false;
+      // Paddle spin
+      const pc=p.y+p.height/2,no=(ob.y-pc)/(p.height/2);
+      ob.spin+=Math.max(-1,Math.min(1,no))*Math.hypot(ob.vx,ob.vy)*POOL_SPIN.paddleSpin+p.vy*POOL_SPIN.paddleVelSpin;
+      ob.spin=Math.max(-POOL_SPIN.maxObjSpin,Math.min(POOL_SPIN.maxObjSpin,ob.spin));
+
     }
   }
 
@@ -1864,7 +1968,7 @@ class PongGame {
 
   _poolHandleMainPocket(pocket){
     const b=this.ball;
-    b.pocketed=true;b.dx=0;b.dy=0;b.x=pocket.x;b.y=pocket.y;
+    b.pocketed=true;b.dx=0;b.dy=0;b.spin=0;b.x=pocket.x;b.y=pocket.y;
     if(settings.soundEnabled)this.sound.play('paddle');
     if(settings.effectsEnabled&&b.color){for(let i=0;i<12;i++)this.particles.push(new Particle(pocket.x,pocket.y,b.color));}
     if(b.lastTouchedBy==='left'){this.paddleLeft.score++;}
@@ -1873,6 +1977,22 @@ class PongGame {
     if(w){this.winMessage='PLAYER '+w+' WINS!';this.state='over';if(settings.soundEnabled)this.sound.play('win');return;}
     this.poolMainRespawn=true;this.transition('serving');
   }
+
+  _poolQueueClack(strength){
+    if(!this.poolClackQueue)this.poolClackQueue=[];
+    if(this.poolClackQueue.length>=POOL_SOUND.maxPerTick)return;
+    this.poolClackQueue.push(Math.min(1,strength/POOL_SOUND.fullVol));
+  }
+  _poolFlushClacks(){
+    if(!this.poolClackQueue||!this.poolClackQueue.length)return;
+    const q=this.poolClackQueue.sort((a,b)=>b-a).slice(0,POOL_SOUND.maxPerTick);
+    this.poolClackQueue=[];
+    for(const s of q){
+      if(!settings.soundEnabled)break;
+      this.sound.playPoolClack(s);
+    }
+  }
+  _poolResetClacks(){this.poolClackQueue=[];}
   _ballCollision(a,b){
     const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy),min=(a.size+b.size)/2;
     if(dist<min&&dist>0){
@@ -2028,7 +2148,7 @@ class PongGame {
     this.ball.drawInterpolated(ctx,ts,alpha);
     for(const b of this.multiBalls)b.drawInterpolated(ctx,ts,alpha);
     // pool object balls
-    if(settings.gameVariant==='pool'){for(const ob of this.poolObjBalls){if(!ob.active)continue;const s=ob.radius*2;if(ob.animTimer>0){const t=1-ob.animTimer/POOL_RACK.animTicks;ctx.save();ctx.globalAlpha=t;BallRenderer.draw(ctx,ob.pocketTarget?ob.pocketTarget.x:ob.x,ob.pocketTarget?ob.pocketTarget.y:ob.y,s*t,'#ffffff',ob.skin,0);ctx.restore();}else{BallRenderer.draw(ctx,ob.x,ob.y,s,'#ffffff',ob.skin,0);}}}
+    if(settings.gameVariant==='pool'){for(const ob of this.poolObjBalls){if(!ob.active)continue;const s=ob.radius*2;if(ob.animTimer>0){const t=1-ob.animTimer/POOL_RACK.animTicks;ctx.save();ctx.globalAlpha=t;BallRenderer.draw(ctx,ob.pocketTarget?ob.pocketTarget.x:ob.x,ob.pocketTarget?ob.pocketTarget.y:ob.y,s*t,'#ffffff',ob.skin,0);ctx.restore();}else{ctx.save();ctx.translate(ob.x,ob.y);ctx.rotate(ob.angle||0);ctx.translate(-ob.x,-ob.y);BallRenderer.draw(ctx,ob.x,ob.y,s,'#ffffff',ob.skin,0);ctx.restore();}}}
     for(const p of this.particles)p.draw(ctx,alpha);
     // power-up orb
     if(this.powerUp&&this.state==='playing'){

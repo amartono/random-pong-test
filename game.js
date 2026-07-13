@@ -998,36 +998,75 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: pre-rendered high-res texture, drawn as image (no per-frame procedural)
+  // -- soccer: fully procedural classic black-and-white paneled soccer ball
   _soccer(ctx,x,y,r){
-    if(!BallRenderer._soccerTex){
-      const sz=256,hr=sz/2,tc=document.createElement('canvas');tc.width=sz;tc.height=sz;
-      const tctx=tc.getContext('2d');tctx.imageSmoothingEnabled=true;
-      const P=(nx,ny)=>[hr+nx*hr,hr+ny*hr];
-      const draw=(pts,fill,stroke,lw)=>{tctx.beginPath();tctx.moveTo(...P(pts[0][0],pts[0][1]));for(let i=1;i<pts.length;i++)tctx.lineTo(...P(pts[i][0],pts[i][1]));tctx.closePath();if(fill){tctx.fillStyle=fill;tctx.fill();}if(stroke){tctx.strokeStyle=stroke;tctx.lineWidth=lw;tctx.stroke();}};
-      tctx.fillStyle='#f8f8f5';tctx.beginPath();tctx.arc(hr,hr,hr,0,Math.PI*2);tctx.fill();
-      const bk='#050505',sk='#222',sw=4;
-      const B1=[[-.52,-.38],[-.68,-.60],[-.42,-.78],[-.18,-.65],[-.18,-.40]];
-      const B2=[[.50,.25],[.72,.50],[.58,.75],[.28,.70],[.20,.45]];
-      const B3=[[-.18,.08],[-.02,.28],[.18,.22],[.22,.02],[.05,-.12]];
-      draw(B1,bk,null,0);draw(B2,bk,null,0);draw(B3,bk,null,0);
-      draw([[-.18,-.40],[-.18,-.65],[.08,-.48],[.22,-.30],[.22,.02]],'#f8f8f5',null,0);
-      draw([[.18,.22],[.20,.45],[.08,.52],[-.02,.28],[.05,-.12]],'#f8f8f5',null,0);
-      draw([[-.18,-.40],[-.18,.08],[-.02,.28],[.05,-.12]],'#f8f8f5',null,0);
-      draw([[-.52,-.38],[-.18,-.40],[-.18,.08]],'#f8f8f5',null,0);
-      tctx.strokeStyle=sk;tctx.lineWidth=sw;tctx.lineJoin='round';
-      draw(B1,null,sk,sw);draw(B2,null,sk,sw);draw(B3,null,sk,sw);
-      draw([[-.18,-.40],[-.18,-.65],[.08,-.48],[.22,-.30],[.22,.02]],null,sk,sw);
-      draw([[.18,.22],[.20,.45],[.08,.52],[-.02,.28],[.05,-.12]],null,sk,sw);
-      draw([[-.18,-.40],[-.18,.08],[-.02,.28],[.05,-.12]],null,sk,sw);
-      draw([[-.52,-.38],[-.18,-.40],[-.18,.08]],null,sk,sw);
-      for(const[a,b]of[[[-.52,-.38],[-.68,-.60]],[[-.68,-.60],[-.42,-.78]],[[-.42,-.78],[-.18,-.65]],[[.50,.25],[.72,.50]],[[.72,.50],[.58,.75]],[[.58,.75],[.28,.70]],[[-.18,.08],[-.52,-.38]]]){tctx.beginPath();tctx.moveTo(...P(a[0],a[1]));tctx.lineTo(...P(b[0],b[1]));tctx.stroke();}
-      tctx.fillStyle='rgba(255,255,255,.10)';tctx.beginPath();tctx.ellipse(hr-hr*.20,hr-hr*.28,hr*.12,hr*.06,-.4,0,Math.PI*2);tctx.fill();
-      BallRenderer._soccerTex=tc;
+    const TAU=Math.PI*2;
+    const P=(nx,ny)=>[x+nx*r,y+ny*r];
+    const poly=(pts,fill,stroke,lw)=>{
+      ctx.beginPath();ctx.moveTo(...P(pts[0][0],pts[0][1]));
+      for(let i=1;i<pts.length;i++)ctx.lineTo(...P(pts[i][0],pts[i][1]));
+      ctx.closePath();
+      if(fill){ctx.fillStyle=fill;ctx.fill();}
+      if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
+    };
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.clip();
+
+    // white base
+    ctx.fillStyle='#f8f8f5';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
+
+    const sw=Math.max(.55,r*.028),bk='#050505',sk='#222',wh='#f8f8f5';
+    const small=r<11;
+
+    if(small){
+      // Simplified: 3 large black panels + major seams
+      const B1=[[-.45,-.42],[-.62,-.65],[-.38,-.80],[-.15,-.68],[-.15,-.42]];
+      const B2=[[.48,.28],[.68,.52],[.55,.78],[.25,.72],[.18,.48]];
+      const B3=[[-.22,.05],[-.05,.25],[.15,.20],[.18,-.02],[.00,-.12]];
+      poly(B1,bk,null,0);poly(B2,bk,null,0);poly(B3,bk,null,0);
+      ctx.strokeStyle=sk;ctx.lineWidth=sw;ctx.lineJoin='round';
+      poly(B1,null,sk,sw);poly(B2,null,sk,sw);poly(B3,null,sk,sw);
+      for(const[a,b]of[[[-.15,-.42],[-.22,.05]],[[-.15,-.42],[.00,-.12]],[[-.05,.25],[.18,.48]],[[.18,-.02],[.48,.28]],[[-.22,.05],[-.45,-.42]]]){
+        ctx.beginPath();ctx.moveTo(...P(a[0],a[1]));ctx.lineTo(...P(b[0],b[1]));ctx.stroke();
+      }
+    }else{
+      // Full detail: 5 black pentagons spread to edges, clearly separated
+      const bc=[[-.12,.08],[-.02,.22],[.10,.15],[.12,-.02],[.00,-.08]];     // small center
+      const bl=[[-.42,.40],[-.62,.20],[-.65,-.05],[-.48,-.08],[-.30,.15]];   // left
+      const bt=[[.35,-.38],[.58,-.22],[.55,.05],[.38,.12],[.22,-.05]];       // top-right
+      const br=[[.55,.30],[.72,.52],[.60,.75],[.30,.70],[.22,.48]];          // right-bottom
+      const bb=[[-.28,.68],[-.52,.45],[-.60,.15],[-.42,.05],[-.20,.30]];      // bottom-left
+
+      poly(bc,bk,null,0);poly(bl,bk,null,0);poly(bt,bk,null,0);poly(br,bk,null,0);poly(bb,bk,null,0);
+
+      // White panels between
+      poly([[-.12,.08],[-.30,.15],[-.42,.40],[-.28,.68],[-.20,.30],[-.02,.22]],wh,null,0); // left
+      poly([[-.02,.22],[.10,.15],[.35,-.38],[.58,-.22],[.55,.30],[.22,.48]],wh,null,0);    // right
+      poly([[-.12,.08],[-.30,.15],[-.20,.30],[.00,-.08]],wh,null,0);                       // bottom
+      poly([[-.12,.08],[.00,-.08],[.22,-.05],[.35,-.38]],wh,null,0);                       // top
+
+      ctx.strokeStyle=sk;ctx.lineWidth=sw;ctx.lineJoin='round';
+      poly(bc,null,sk,sw);poly(bl,null,sk,sw);poly(bt,null,sk,sw);poly(br,null,sk,sw);poly(bb,null,sk,sw);
+      poly([[-.12,.08],[-.30,.15],[-.42,.40],[-.28,.68],[-.20,.30],[-.02,.22]],null,sk,sw);
+      poly([[-.02,.22],[.10,.15],[.35,-.38],[.58,-.22],[.55,.30],[.22,.48]],null,sk,sw);
+      poly([[-.12,.08],[-.30,.15],[-.20,.30],[.00,-.08]],null,sk,sw);
+      poly([[-.12,.08],[.00,-.08],[.22,-.05],[.35,-.38]],null,sk,sw);
+
+      for(const[a,b]of[[[-.42,.40],[-.62,.20]],[[-.62,.20],[-.65,-.05]],[[-.65,-.05],[-.48,-.08]],
+        [[.35,-.38],[.58,-.22]],[[.58,-.22],[.55,.05]],[[.55,.30],[.72,.52]],[[.72,.52],[.60,.75]],
+        [[.60,.75],[.30,.70]],[[-.28,.68],[-.52,.45]],[[-.52,.45],[-.60,.15]],[[-.60,.15],[-.42,.05]],
+        [[.00,-.08],[.22,-.05]],[[-.20,.30],[-.28,.68]],[[.22,.48],[.55,.30]]]){
+        ctx.beginPath();ctx.moveTo(...P(a[0],a[1]));ctx.lineTo(...P(b[0],b[1]));ctx.stroke();
+      }
     }
-    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
-    ctx.drawImage(BallRenderer._soccerTex,x-r,y-r,r*2,r*2);
+
+    // subtle highlight
+    ctx.fillStyle='rgba(255,255,255,.08)';
+    ctx.beginPath();ctx.ellipse(x-r*.20,y-r*.28,r*.12,r*.06,-.4,0,TAU);ctx.fill();
+
     ctx.restore();
+    // ball outline
+    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=Math.max(.5,r*.022);
+    ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
   },
 
   // -- tennis: golden yellow (#dcd214), two crossing white seam curves, fuzzy edge

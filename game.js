@@ -1678,7 +1678,7 @@ class PongGame {
     this._syncDimensions();this._resetGame();this.transition('serving');
   }
   restart(){this.paused=false;this._resetGame();this.transition('serving');}
-  _applySettings(){this._applyThemeAndColors();if(settings.gameVariant!=='frenzy')this.ball.skin=settings.ballSkin;applyThemeCSS(settings.theme);}
+  _applySettings(){this._applyThemeAndColors();if(settings.gameVariant!=='frenzy'){if(/^\d+ball$/.test(settings.ballSkin)&&settings.ballSkin!=='8ball')settings.ballSkin='8ball';this.ball.skin=settings.ballSkin;}applyThemeCSS(settings.theme);}
   _applyThemeAndColors(){
     const t=THEMES[settings.theme];
     if(settings.gameVariant!=='frenzy'){
@@ -2294,6 +2294,8 @@ class MenuController {
     const g=document.getElementById('ballSkinGrid');g.innerHTML='';
     for(const{key,label}of BALL_SKINS){
       if(CustomBallRegistry.isHidden(key))continue;   // skip hidden built-ins
+      // hide numbered billiard skins except 8-ball (Pool Mode uses these internally)
+      if(/^\d+ball$/.test(key)&&key!=='8ball')continue;
       const b=document.createElement('button');b.className='ball-skin-btn';b.dataset.skin=key;b.textContent=label;
       b.addEventListener('click',()=>this._onBallSkinClick(key));g.appendChild(b);
     }

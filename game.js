@@ -998,61 +998,78 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: classic black-and-white soccer ball with bold pentagon patches and seams
+  // -- soccer: classic black-and-white paneled soccer ball
   _soccer(ctx,x,y,r){
     const TAU=Math.PI*2;
-    // white base with subtle sphere shading (matches other presets)
-    const bg=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.04,x,y,r);
-    bg.addColorStop(0,'#ffffff');bg.addColorStop(.8,'#f0f0f0');bg.addColorStop(1,'#d8d8d8');
-    ctx.fillStyle=bg;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
 
-    // ---- bold black pentagon patches (2 visible, one center, one offset) ----
+    // polygon helper
+    const ngon=(cx,cy,sr,sides,rot)=>Array.from({length:sides},(_,k)=>({x:cx+Math.cos(rot+TAU/sides*k)*sr,y:cy+Math.sin(rot+TAU/sides*k)*sr}));
+
+    // clamp drawing inside ball
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.clip();
+
+    // white base
+    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
+
+    // ---- black panels ----
     ctx.fillStyle='#111';
-    // center pentagon (largest, most visible)
-    const cr=r*.15, pent=n=>Array.from({length:5},(_,k)=>({x:x+Math.cos(n+TAU/5*k+TAU/10)*cr, y:y+Math.sin(n+TAU/5*k+TAU/10)*cr}));
-    const cp=pent(0);
-    ctx.beginPath();ctx.moveTo(cp[0].x,cp[0].y);
-    for(let k=1;k<5;k++)ctx.lineTo(cp[k].x,cp[k].y);
-    ctx.closePath();ctx.fill();
 
-    // four surrounding pentagons at wider radius
-    const surroundAngles=[TAU/4*0,TAU/4*1,TAU/4*2,TAU/4*3];
-    for(const a of surroundAngles){
-      const cx=x+Math.cos(a)*r*.42,cy=y+Math.sin(a)*r*.42;
-      const sr=r*.12, sp=Array.from({length:5},(_,k)=>({x:cx+Math.cos(a+TAU/5*k+TAU/10)*sr, y:cy+Math.sin(a+TAU/5*k+TAU/10)*sr}));
-      ctx.beginPath();ctx.moveTo(sp[0].x,sp[0].y);
-      for(let k=1;k<5;k++)ctx.lineTo(sp[k].x,sp[k].y);
-      ctx.closePath();ctx.fill();
+    if(r<11){
+      // small-size simplified: center + 4 edge-reaching panels
+      const cp=ngon(x,y,r*.3,5,0);
+      ctx.beginPath();ctx.moveTo(cp[0].x,cp[0].y);for(let k=1;k<5;k++)ctx.lineTo(cp[k].x,cp[k].y);ctx.closePath();ctx.fill();
+      // edge panels — large, clipped at ball boundary
+      const edges=[{cx:x-r*.5,cy:y-r*.45},{cx:x+r*.5,cy:y-r*.45},{cx:x-r*.5,cy:y+r*.45},{cx:x+r*.5,cy:y+r*.45}];
+      for(const e of edges){
+        const ep=ngon(e.cx,e.cy,r*.32,5,Math.random()*.3);
+        ctx.beginPath();ctx.moveTo(ep[0].x,ep[0].y);for(let k=1;k<5;k++)ctx.lineTo(ep[k].x,ep[k].y);ctx.closePath();ctx.fill();
+      }
+    }else{
+      // full detail: center + 6 distributed edge pentagons
+      const cp=ngon(x,y,r*.26,5,0);
+      ctx.beginPath();ctx.moveTo(cp[0].x,cp[0].y);for(let k=1;k<5;k++)ctx.lineTo(cp[k].x,cp[k].y);ctx.closePath();ctx.fill();
+
+      // outer pentagons distributed around the sphere at various angles/offsets
+      const outer=[
+        {cx:x-r*.62,cy:y-r*.50,size:r*.28,rot:.15},   // upper-left
+        {cx:x+r*.64,cy:y-r*.40,size:r*.27,rot:-.2},   // upper-right
+        {cx:x-r*.58,cy:y+r*.44,size:r*.26,rot:.3},    // lower-left
+        {cx:x+r*.60,cy:y+r*.48,size:r*.28,rot:-.1},   // lower-right
+        {cx:x-r*.30,cy:y-r*.68,size:r*.24,rot:.5},    // top
+        {cx:x+r*.28,cy:y+r*.66,size:r*.25,rot:.4},    // bottom
+        {cx:x-r*.72,cy:y-r*.10,size:r*.22,rot:.2},    // left
+        {cx:x+r*.70,cy:y+r*.05,size:r*.23,rot:-.3},   // right
+      ];
+      for(const o of outer){
+        const op=ngon(o.cx,o.cy,o.size,5,o.rot);
+        ctx.beginPath();ctx.moveTo(op[0].x,op[0].y);for(let k=1;k<5;k++)ctx.lineTo(op[k].x,op[k].y);ctx.closePath();ctx.fill();
+      }
     }
 
-    // ---- thick seam lines connecting pentagons ----
-    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=Math.max(1.2,r*.05);ctx.lineJoin='round';ctx.lineCap='round';
-    // center pentagon outline
-    ctx.beginPath();ctx.moveTo(cp[0].x,cp[0].y);
-    for(let k=1;k<5;k++)ctx.lineTo(cp[k].x,cp[k].y);
-    ctx.closePath();ctx.stroke();
-    // around each surrounding pentagon
-    for(const a of surroundAngles){
-      const cx=x+Math.cos(a)*r*.42,cy=y+Math.sin(a)*r*.42;
-      const sr=r*.12;
-      const sp=Array.from({length:5},(_,k)=>({x:cx+Math.cos(a+TAU/5*k+TAU/10)*sr, y:cy+Math.sin(a+TAU/5*k+TAU/10)*sr}));
-      ctx.beginPath();ctx.moveTo(sp[0].x,sp[0].y);
-      for(let k=1;k<5;k++)ctx.lineTo(sp[k].x,sp[k].y);
-      ctx.closePath();ctx.stroke();
-      // seam from this pentagon toward center
-      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x,y);ctx.stroke();
+    // ---- seam network ----
+    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=Math.max(.8,r*.04);ctx.lineJoin='round';
+    // center pentagon seams
+    const cp2=ngon(x,y,r*.26,5,0);
+    ctx.beginPath();ctx.moveTo(cp2[0].x,cp2[0].y);for(let k=1;k<5;k++)ctx.lineTo(cp2[k].x,cp2[k].y);ctx.closePath();ctx.stroke();
+    // radiating seams from center vertices outward
+    for(let k=0;k<5;k++){
+      const vx=x+Math.cos(TAU/5*k+TAU/10)*r*.26,vy=y+Math.sin(TAU/5*k+TAU/10)*r*.26;
+      const ex=x+Math.cos(TAU/5*k+TAU/10)*r*.85,ey=y+Math.sin(TAU/5*k+TAU/10)*r*.85;
+      ctx.beginPath();ctx.moveTo(vx,vy);ctx.lineTo(ex,ey);ctx.stroke();
     }
+    // ring seams at two radii
+    ctx.strokeStyle='#333';ctx.lineWidth=Math.max(.6,r*.025);
+    ctx.beginPath();ctx.arc(x,y,r*.58,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.arc(x,y,r*.82,0,TAU);ctx.stroke();
 
-    // ---- outer edge seam ring ----
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=Math.max(.8,r*.03);
-    ctx.beginPath();ctx.arc(x,y,r*.92,0,TAU);ctx.stroke();
+    // ---- subtle highlight ----
+    ctx.fillStyle='rgba(255,255,255,.15)';
+    ctx.beginPath();ctx.ellipse(x-r*.20,y-r*.28,r*.13,r*.07,-.4,0,TAU);ctx.fill();
 
-    // ---- subtle highlight (same style as 8-ball preset) ----
-    ctx.fillStyle='rgba(255,255,255,.18)';
-    ctx.beginPath();ctx.ellipse(x-r*.20,y-r*.28,r*.15,r*.08,-.4,0,TAU);ctx.fill();
+    ctx.restore();
 
     // ---- ball outline ----
-    ctx.strokeStyle='#333';ctx.lineWidth=Math.max(.7,r*.03);
+    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=Math.max(.7,r*.03);
     ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
   },
 

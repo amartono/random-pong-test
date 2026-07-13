@@ -998,82 +998,61 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: flat 2D hexagon-face view — white center panel, 3 black pentagons, thin seam web
+  // -- soccer: classic black-and-white soccer ball with bold pentagon patches and seams
   _soccer(ctx,x,y,r){
     const TAU=Math.PI*2;
+    // white base with subtle sphere shading (matches other presets)
+    const bg=ctx.createRadialGradient(x-r*.25,y-r*.3,r*.04,x,y,r);
+    bg.addColorStop(0,'#ffffff');bg.addColorStop(.8,'#f0f0f0');bg.addColorStop(1,'#d8d8d8');
+    ctx.fillStyle=bg;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
 
-    // flat white circle (no shading)
-    ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
-
-    // ---- center: white HEXAGON (6 vertices) ----
-    const H6=6;
-    const hexR=r*.16;
-    const hexAngles=Array.from({length:H6},(_,i)=>TAU/H6*i);  // 0°,60°,120°,180°,240°,300°
-    const H=hexAngles.map(a=>({x:x+Math.cos(a)*hexR, y:y+Math.sin(a)*hexR}));
-
-    // ---- 3 black PENTAGONS at alternating hex vertices (0°,120°,240°) ----
-    const pentAngles=[0,2,4].map(i=>hexAngles[i]);
-    const pentDist=r*.44;    // distance from center
-    const pentR=r*.13;       // pentagon size
-
-    const P=pentAngles.map(a=>{
-      const cx=x+Math.cos(a)*pentDist, cy=y+Math.sin(a)*pentDist;
-      return Array.from({length:5},(_,k)=>({
-        x:cx+Math.cos(a+Math.PI+TAU/5*k)*pentR,
-        y:cy+Math.sin(a+Math.PI+TAU/5*k)*pentR,
-      }));
-    });
-
-    // seam thickness
-    const sw=Math.max(.7, r*.035);
-
-    // ---- fill black pentagons first ----
+    // ---- bold black pentagon patches (2 visible, one center, one offset) ----
     ctx.fillStyle='#111';
-    for(const p of P){
-      ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);
-      for(let k=1;k<5;k++)ctx.lineTo(p[k].x,p[k].y);
+    // center pentagon (largest, most visible)
+    const cr=r*.15, pent=n=>Array.from({length:5},(_,k)=>({x:x+Math.cos(n+TAU/5*k+TAU/10)*cr, y:y+Math.sin(n+TAU/5*k+TAU/10)*cr}));
+    const cp=pent(0);
+    ctx.beginPath();ctx.moveTo(cp[0].x,cp[0].y);
+    for(let k=1;k<5;k++)ctx.lineTo(cp[k].x,cp[k].y);
+    ctx.closePath();ctx.fill();
+
+    // four surrounding pentagons at wider radius
+    const surroundAngles=[TAU/4*0,TAU/4*1,TAU/4*2,TAU/4*3];
+    for(const a of surroundAngles){
+      const cx=x+Math.cos(a)*r*.42,cy=y+Math.sin(a)*r*.42;
+      const sr=r*.12, sp=Array.from({length:5},(_,k)=>({x:cx+Math.cos(a+TAU/5*k+TAU/10)*sr, y:cy+Math.sin(a+TAU/5*k+TAU/10)*sr}));
+      ctx.beginPath();ctx.moveTo(sp[0].x,sp[0].y);
+      for(let k=1;k<5;k++)ctx.lineTo(sp[k].x,sp[k].y);
       ctx.closePath();ctx.fill();
     }
 
-    // ---- seam network (all thin dark lines) ----
-    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=sw;ctx.lineJoin='round';ctx.lineCap='round';
-
-    // center hexagon outline
-    ctx.beginPath();ctx.moveTo(H[0].x,H[0].y);
-    for(let i=1;i<H6;i++)ctx.lineTo(H[i].x,H[i].y);
+    // ---- thick seam lines connecting pentagons ----
+    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=Math.max(1.2,r*.05);ctx.lineJoin='round';ctx.lineCap='round';
+    // center pentagon outline
+    ctx.beginPath();ctx.moveTo(cp[0].x,cp[0].y);
+    for(let k=1;k<5;k++)ctx.lineTo(cp[k].x,cp[k].y);
     ctx.closePath();ctx.stroke();
-
-    // pentagon-to-hexagon seams: inward vertex of each pentagon to its hex vertex
-    for(let pi=0;pi<3;pi++){
-      const hi=pi*2;  // hex indices 0,2,4
-      ctx.beginPath();ctx.moveTo(H[hi].x,H[hi].y);
-      ctx.lineTo(P[pi][0].x,P[pi][0].y);ctx.stroke();
-    }
-
-    // pentagon edges
-    for(const p of P){
-      ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);
-      for(let k=1;k<5;k++)ctx.lineTo(p[k].x,p[k].y);
+    // around each surrounding pentagon
+    for(const a of surroundAngles){
+      const cx=x+Math.cos(a)*r*.42,cy=y+Math.sin(a)*r*.42;
+      const sr=r*.12;
+      const sp=Array.from({length:5},(_,k)=>({x:cx+Math.cos(a+TAU/5*k+TAU/10)*sr, y:cy+Math.sin(a+TAU/5*k+TAU/10)*sr}));
+      ctx.beginPath();ctx.moveTo(sp[0].x,sp[0].y);
+      for(let k=1;k<5;k++)ctx.lineTo(sp[k].x,sp[k].y);
       ctx.closePath();ctx.stroke();
+      // seam from this pentagon toward center
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x,y);ctx.stroke();
     }
 
-    // connect adjacent pentagons: P[i].vertex[2] to P[(i+1)%3].vertex[3]
-    for(let i=0;i<3;i++){
-      const j=(i+1)%3;
-      ctx.beginPath();ctx.moveTo(P[i][2].x,P[i][2].y);
-      ctx.lineTo(P[j][3].x,P[j][3].y);ctx.stroke();
-    }
+    // ---- outer edge seam ring ----
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=Math.max(.8,r*.03);
+    ctx.beginPath();ctx.arc(x,y,r*.92,0,TAU);ctx.stroke();
 
-    // outward seams from non-pentagon hex vertices (60°,180°,300°)
-    for(let hi=1;hi<H6;hi+=2){  // indices 1,3,5
-      const a=hexAngles[hi];
-      const ex=x+Math.cos(a)*r*.76, ey=y+Math.sin(a)*r*.76;
-      ctx.beginPath();ctx.moveTo(H[hi].x,H[hi].y);
-      ctx.lineTo(ex,ey);ctx.stroke();
-    }
+    // ---- subtle highlight (same style as 8-ball preset) ----
+    ctx.fillStyle='rgba(255,255,255,.18)';
+    ctx.beginPath();ctx.ellipse(x-r*.20,y-r*.28,r*.15,r*.08,-.4,0,TAU);ctx.fill();
 
-    // ball rim — thin, dark
-    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=Math.max(.8, r*.04);
+    // ---- ball outline ----
+    ctx.strokeStyle='#333';ctx.lineWidth=Math.max(.7,r*.03);
     ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
   },
 

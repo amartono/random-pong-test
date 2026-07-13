@@ -998,63 +998,36 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: hand-designed full-sphere panel map (4 black pentagons, 5 white panels, no overlap)
+  // -- soccer: pre-rendered high-res texture, drawn as image (no per-frame procedural)
   _soccer(ctx,x,y,r){
-    const TAU=Math.PI*2;
-    const P=(nx,ny)=>[x+nx*r,y+ny*r];
-    const draw=(pts,fill,stroke,lw)=>{
-      ctx.beginPath();ctx.moveTo(...P(pts[0][0],pts[0][1]));
-      for(let i=1;i<pts.length;i++)ctx.lineTo(...P(pts[i][0],pts[i][1]));
-      ctx.closePath();
-      if(fill){ctx.fillStyle=fill;ctx.fill();}
-      if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
-    };
-    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.clip();
-    ctx.fillStyle='#f8f8f5';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
-
-    const sw=Math.max(.55,r*.028),bk='#050505',sk='#222',wh='#f8f8f5';
-
-    // === 3 BLACK PENTAGONS (widely spaced — upper-left, center, lower-right) ===
-    const B1=[[-.55,-.45],[-.72,-.68],[-.45,-.85],[-.18,-.68],[-.20,-.42]]; // upper-left (clips edge)
-    const B2=[[.50,.25],[.72,.52],[.55,.78],[.25,.70],[.20,.45]];            // lower-right (clips edge)
-    const B3=[[-.20,.05],[-.02,.30],[.18,.22],[.22,.02],[.05,-.15]];         // center (main visible pentagon)
-
-    draw(B1,bk,null,0);
-    draw(B2,bk,null,0);
-    draw(B3,bk,null,0);
-
-    // === 4 WHITE POLYGON PANELS (separating all black panels) ===
-    // top white region
-    draw([[-.20,-.42],[-.18,-.68],[.08,-.48],[.22,-.30],[.22,.02]],wh,null,0);
-    // right-center white
-    draw([[.18,.22],[.20,.45],[.08,.52],[-.02,.30],[.05,-.15]],wh,null,0);
-    // center white diamond
-    draw([[-.20,-.42],[-.20,.05],[-.02,.30],[.05,-.15]],wh,null,0);
-    // left-edge white
-    draw([[-.55,-.45],[-.20,-.42],[-.20,.05]],wh,null,0);
-
-    // === SEAM NETWORK ===
-    ctx.strokeStyle=sk;ctx.lineWidth=sw;ctx.lineJoin='round';
-    draw(B1,null,sk,sw);
-    draw(B2,null,sk,sw);
-    draw(B3,null,sk,sw);
-    draw([[-.20,-.42],[-.18,-.68],[.08,-.48],[.22,-.30],[.22,.02]],null,sk,sw);
-    draw([[.18,.22],[.20,.45],[.08,.52],[-.02,.30],[.05,-.15]],null,sk,sw);
-    draw([[-.20,-.42],[-.20,.05],[-.02,.30],[.05,-.15]],null,sk,sw);
-    draw([[-.55,-.45],[-.20,-.42],[-.20,.05]],null,sk,sw);
-
-    // edge seam extensions
-    for(const[a,b]of[[[-.55,-.45],[-.72,-.68]],[[-.72,-.68],[-.45,-.85]],
-      [[-.45,-.85],[-.18,-.68]],[[.50,.25],[.72,.52]],[[.72,.52],[.55,.78]],
-      [[.55,.78],[.25,.70]],[[-.20,.05],[-.55,-.45]]]){
-      ctx.beginPath();ctx.moveTo(...P(a[0],a[1]));ctx.lineTo(...P(b[0],b[1]));ctx.stroke();
+    if(!BallRenderer._soccerTex){
+      const sz=256,hr=sz/2,tc=document.createElement('canvas');tc.width=sz;tc.height=sz;
+      const tctx=tc.getContext('2d');tctx.imageSmoothingEnabled=true;
+      const P=(nx,ny)=>[hr+nx*hr,hr+ny*hr];
+      const draw=(pts,fill,stroke,lw)=>{tctx.beginPath();tctx.moveTo(...P(pts[0][0],pts[0][1]));for(let i=1;i<pts.length;i++)tctx.lineTo(...P(pts[i][0],pts[i][1]));tctx.closePath();if(fill){tctx.fillStyle=fill;tctx.fill();}if(stroke){tctx.strokeStyle=stroke;tctx.lineWidth=lw;tctx.stroke();}};
+      tctx.fillStyle='#f8f8f5';tctx.beginPath();tctx.arc(hr,hr,hr,0,Math.PI*2);tctx.fill();
+      const bk='#050505',sk='#222',sw=4;
+      const B1=[[-.52,-.38],[-.68,-.60],[-.42,-.78],[-.18,-.65],[-.18,-.40]];
+      const B2=[[.50,.25],[.72,.50],[.58,.75],[.28,.70],[.20,.45]];
+      const B3=[[-.18,.08],[-.02,.28],[.18,.22],[.22,.02],[.05,-.12]];
+      draw(B1,bk,null,0);draw(B2,bk,null,0);draw(B3,bk,null,0);
+      draw([[-.18,-.40],[-.18,-.65],[.08,-.48],[.22,-.30],[.22,.02]],'#f8f8f5',null,0);
+      draw([[.18,.22],[.20,.45],[.08,.52],[-.02,.28],[.05,-.12]],'#f8f8f5',null,0);
+      draw([[-.18,-.40],[-.18,.08],[-.02,.28],[.05,-.12]],'#f8f8f5',null,0);
+      draw([[-.52,-.38],[-.18,-.40],[-.18,.08]],'#f8f8f5',null,0);
+      tctx.strokeStyle=sk;tctx.lineWidth=sw;tctx.lineJoin='round';
+      draw(B1,null,sk,sw);draw(B2,null,sk,sw);draw(B3,null,sk,sw);
+      draw([[-.18,-.40],[-.18,-.65],[.08,-.48],[.22,-.30],[.22,.02]],null,sk,sw);
+      draw([[.18,.22],[.20,.45],[.08,.52],[-.02,.28],[.05,-.12]],null,sk,sw);
+      draw([[-.18,-.40],[-.18,.08],[-.02,.28],[.05,-.12]],null,sk,sw);
+      draw([[-.52,-.38],[-.18,-.40],[-.18,.08]],null,sk,sw);
+      for(const[a,b]of[[[-.52,-.38],[-.68,-.60]],[[-.68,-.60],[-.42,-.78]],[[-.42,-.78],[-.18,-.65]],[[.50,.25],[.72,.50]],[[.72,.50],[.58,.75]],[[.58,.75],[.28,.70]],[[-.18,.08],[-.52,-.38]]]){tctx.beginPath();tctx.moveTo(...P(a[0],a[1]));tctx.lineTo(...P(b[0],b[1]));tctx.stroke();}
+      tctx.fillStyle='rgba(255,255,255,.10)';tctx.beginPath();tctx.ellipse(hr-hr*.20,hr-hr*.28,hr*.12,hr*.06,-.4,0,Math.PI*2);tctx.fill();
+      BallRenderer._soccerTex=tc;
     }
-
-    ctx.fillStyle='rgba(255,255,255,.08)';
-    ctx.beginPath();ctx.ellipse(x-r*.22,y-r*.30,r*.12,r*.06,-.4,0,TAU);ctx.fill();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();
+    ctx.drawImage(BallRenderer._soccerTex,x-r,y-r,r*2,r*2);
     ctx.restore();
-    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=Math.max(.6,r*.025);
-    ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
   },
 
   // -- tennis: golden yellow (#dcd214), two crossing white seam curves, fuzzy edge

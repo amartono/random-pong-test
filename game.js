@@ -998,65 +998,53 @@ const BallRenderer = {
     for(const{d,a}of dots){ctx.beginPath();ctx.arc(x+Math.cos(a)*d*r,y+Math.sin(a)*d*r,.4,0,Math.PI*2);ctx.fill();}
   },
 
-  // -- soccer: classic simplified black-and-white soccer ball (few large panels, clean seams)
+  // -- soccer: large white panels on black, connected seam network covering full sphere
   _soccer(ctx,x,y,r){
     const TAU=Math.PI*2;
-    const S=(sx,sy)=>x+sx*r;
-    const T=(sy)=>y+sy*r;
-    // draw a convex polygon from normalized points (each [sx,sy])
-    const poly=(pts,fill,stroke,w)=>{
-      ctx.beginPath();ctx.moveTo(S(pts[0][0]),T(pts[0][1]));
-      for(let i=1;i<pts.length;i++)ctx.lineTo(S(pts[i][0]),T(pts[i][1]));
+    const P=(nx,ny)=>[x+nx*r,y+ny*r];
+    const face=(pts,fill,stroke,lw)=>{
+      ctx.beginPath();ctx.moveTo(...P(pts[0][0],pts[0][1]));
+      for(let i=1;i<pts.length;i++)ctx.lineTo(...P(pts[i][0],pts[i][1]));
       ctx.closePath();
       if(fill){ctx.fillStyle=fill;ctx.fill();}
-      if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=w;ctx.stroke();}
+      if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
     };
-
     ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.clip();
 
     // white base
-    ctx.fillStyle='#fafafa';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
+    ctx.fillStyle='#f8f8f6';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
 
-    // ---- 5 large black pentagonal panels ----
-    ctx.fillStyle='#111';
-    const sw=Math.max(.6,r*.022);
+    const sw=Math.max(.55,r*.03),bk='#0a0a0a',sk='#222';
 
-    // Center-left black pentagon (large, offset from center)
-    poly([[.12,.28],[.35,.22],[.40,-.02],[.28,-.18],[.02,-.10]],'#111',null,0);
-    // Upper-left large black panel (clips at edge)
-    poly([[-.42,-.35],[-.12,-.42],[.05,-.62],[-.18,-.78],[-.52,-.60]],'#111',null,0);
-    // Upper-right partial black panel
-    poly([[.65,-.08],[.82,.15],[.68,.42],[.40,.30],[.42,-.02]],'#111',null,0);
-    // Lower-right black panel (near edge)
-    poly([[.25,.55],[.52,.48],[.68,.58],[.55,.82],[.22,.72]],'#111',null,0);
-    // Far-left partial panel
-    poly([[-.72,-.05],[-.48,-.12],[-.42,.15],[-.60,.25],[-.82,.10]],'#111',null,0);
+    // === 5 large black pentagons reaching edges ===
+    face([[-.45,-.25],[-.10,-.50],[.25,-.45],[.42,-.15],[.15,.08],[-.32,.05]],bk,null,0);  // center-low
+    face([[-.15,.58],[.22,.68],[.58,.45],[.55,.08],[.18,.22]],bk,null,0);                   // upper-right
+    face([[-.35,.75],[-.72,.45],[-.78,.05],[-.52,-.08],[-.18,.38]],bk,null,0);              // upper-left
+    face([[.52,-.58],[.82,-.32],[.78,.02],[.55,.22],[.32,-.20]],bk,null,0);                 // right
+    face([[-.70,-.48],[-.45,-.68],[-.12,-.75],[.10,-.50],[-.28,-.25]],bk,null,0);           // bottom-left
 
-    // ---- seam outlines around each black panel ----
-    ctx.strokeStyle='#2a2a2a';ctx.lineJoin='round';
-    poly([[.12,.28],[.35,.22],[.40,-.02],[.28,-.18],[.02,-.10]],null,'#2a2a2a',sw);
-    poly([[-.42,-.35],[-.12,-.42],[.05,-.62],[-.18,-.78],[-.52,-.60]],null,'#2a2a2a',sw);
-    poly([[.65,-.08],[.82,.15],[.68,.42],[.40,.30],[.42,-.02]],null,'#2a2a2a',sw);
-    poly([[.25,.55],[.52,.48],[.68,.58],[.55,.82],[.22,.72]],null,'#2a2a2a',sw);
-    poly([[-.72,-.05],[-.48,-.12],[-.42,.15],[-.60,.25],[-.82,.10]],null,'#2a2a2a',sw);
+    // === seam outlines ===
+    ctx.strokeStyle=sk;ctx.lineWidth=sw;ctx.lineJoin='round';
+    face([[-.45,-.25],[-.10,-.50],[.25,-.45],[.42,-.15],[.15,.08],[-.32,.05]],null,sk,sw);
+    face([[-.15,.58],[.22,.68],[.58,.45],[.55,.08],[.18,.22]],null,sk,sw);
+    face([[-.35,.75],[-.72,.45],[-.78,.05],[-.52,-.08],[-.18,.38]],null,sk,sw);
+    face([[.52,-.58],[.82,-.32],[.78,.02],[.55,.22],[.32,-.20]],null,sk,sw);
+    face([[-.70,-.48],[-.45,-.68],[-.12,-.75],[.10,-.50],[-.28,-.25]],null,sk,sw);
 
-    // 6 connecting seam lines between panels (clean, minimal)
-    for(const[[x1,y1],[x2,y2]]of[
-      [[.02,-.10],[.05,-.62]],[[.28,-.18],[.42,-.02]],
-      [[.35,.22],[.25,.55]],[[.02,-.10],[-.42,.15]],
-      [[.40,-.02],[.68,.42]],[[-.12,-.42],[.65,-.08]]
-    ]){
-      ctx.beginPath();ctx.moveTo(S(x1),T(y1));ctx.lineTo(S(x2),T(y2));ctx.stroke();
+    // === inter-panel seams connecting panel vertices ===
+    for(const[e1,e2]of[[[-.32,.05],[-.18,.38]],[[-.10,-.50],[-.28,-.25]],
+      [[.15,.08],[.18,.22]],[[.25,-.45],[.32,-.20]],[[-.32,.05],[-.28,-.25]],
+      [[-.18,.38],[-.10,-.50]],[[.18,.22],[.32,-.20]],[[-.45,-.25],[-.70,-.48]],
+      [[.42,-.15],[.52,-.58]],[[.55,.08],[.55,.22]],[[-.52,-.08],[-.45,-.68]],
+      [[.22,.68],[.58,.45]],[[-.72,.45],[-.78,.05]],[[.82,-.32],[.78,.02]],
+      [[-.45,-.68],[-.12,-.75]],[[.10,-.50],[.25,-.45]]]){
+      ctx.beginPath();ctx.moveTo(...P(e1[0],e1[1]));ctx.lineTo(...P(e2[0],e2[1]));ctx.stroke();
     }
 
-    // subtle highlight
-    ctx.fillStyle='rgba(255,255,255,.15)';
-    ctx.beginPath();ctx.ellipse(x-r*.22,y-r*.28,r*.13,r*.07,-.4,0,TAU);ctx.fill();
-
+    ctx.fillStyle='rgba(255,255,255,.10)';
+    ctx.beginPath();ctx.ellipse(x-r*.22,y-r*.30,r*.12,r*.06,-.4,0,TAU);ctx.fill();
     ctx.restore();
-
-    // ball outline
-    ctx.strokeStyle='#333';ctx.lineWidth=Math.max(.7,r*.03);
+    ctx.strokeStyle='#2a2a2a';ctx.lineWidth=Math.max(.6,r*.025);
     ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
   },
 

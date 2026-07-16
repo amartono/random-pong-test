@@ -227,6 +227,53 @@ const POOL_SOUND = {
   minGain:0.025, maxGain:0.12, pitchMin:0.92, pitchMax:1.08,
 };
 
+/* ---- pinball config & obstacle layout ---- */
+const PINBALL = {
+  frameThickness:14,innerMargin:20,
+  largeR:26,mediumR:18,postR:10,
+  slingRestitution:1.08,largeRestitution:1.10,mediumRestitution:1.07,railRestitution:0.98,postRestitution:1.02,
+  bumperBoost:0.30,maxSpeed:CONFIG.ballSpeedMax,
+  bCooldown:7,sCooldown:6,pCooldown:5,
+  bFlash:14,sFlash:10,
+  spinnerLen:44,spinnerW:7,spinnerAng:0.035,spinnerTransfer:0.20,spinnerFric:0.995,
+  substepRatio:0.45
+};
+function mirrorX(x){return CONFIG.canvasWidth-x;}
+function createPinballLayout(){
+  const w=CONFIG.canvasWidth,h=CONFIG.canvasHeight;
+  // Left-side large bumpers
+  const llb={x:w*.3125,y:h*.29,r:PINBALL.largeR,type:'large'};
+  const llb2={x:w*.3125,y:h*.71,r:PINBALL.largeR,type:'large'};
+  // Right mirror
+  const rlb={x:mirrorX(llb.x),y:llb.y,r:PINBALL.largeR,type:'large'};
+  const rlb2={x:mirrorX(llb2.x),y:llb2.y,r:PINBALL.largeR,type:'large'};
+  // Medium inner bumpers
+  const lmb={x:w*.3875,y:h*.50,r:PINBALL.mediumR,type:'medium'};
+  const rmb={x:mirrorX(lmb.x),y:lmb.y,r:PINBALL.mediumR,type:'medium'};
+  // Posts
+  const lp={x:w*.145,y:h*.50,r:PINBALL.postR,type:'post'};
+  const rp={x:mirrorX(lp.x),y:lp.y,r:PINBALL.postR,type:'post'};
+  // Spinners
+  const ls={x:w*.4625,y:h*.50};
+  const rs={x:w*.5375,y:h*.50};
+  // Left slingshots (upper/lower mirrored)
+  const lsu={a:[{x:135,y:120},{x:200,y:165},{x:145,y:210}]};
+  const lsl={a:[{x:135,y:380},{x:200,y:335},{x:145,y:290}]};
+  const rsu={a:lsu.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
+  const rsl={a:lsl.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
+  // Guide rails (capsule segments)
+  const lgr=[{x1:82,y1:70,x2:175,y2:112},{x1:82,y1:430,x2:175,y2:388}];
+  const rgr=lgr.map(r=>({x1:mirrorX(r.x1),y1:r.y1,x2:mirrorX(r.x2),y2:r.y2}));
+  return {
+    bumpers:[llb,llb2,rlb,rlb2,lmb,rmb],
+    posts:[lp,rp],
+    slingshots:[lsu,lsl,rsu,rsl],
+    rails:[...lgr,...rgr],
+    spinners:[{...ls,angle:Math.PI/2,av: PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
+              {...rs,angle:Math.PI/2,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng}]
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  COLOR HELPERS                                                      */
 /* ------------------------------------------------------------------ */
@@ -1465,6 +1512,19 @@ class SoundEngine {
     bs.connect(bf).connect(bg).connect(this.ctx.destination);
     bs.start(t);bs.stop(t+0.025);
   }
+  playPinballSound(type){
+    if(!this.initialized)this.init();if(!this.ctx)return;if(this.ctx.state==='suspended')this.ctx.resume();
+    const t=this.ctx.currentTime;
+    const n=(freq,start,dur,gain,wave)=>{const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type=wave||'square';o.frequency.setValueAtTime(freq,start);g.gain.setValueAtTime(gain,start);g.gain.exponentialRampToValueAtTime(.001,start+dur);o.connect(g).connect(this.ctx.destination);o.start(start);o.stop(start+dur);};
+    switch(type){
+      case'bumper':n(280,t,.08,.12);n(180,t+.02,.06,.08);break;
+      case'smBumper':n(420,t,.06,.10);n(320,t+.015,.04,.06);break;
+      case'sling':n(600,t,.04,.08,'triangle');n(900,t+.005,.03,.06,'triangle');break;
+      case'rail':n(800,t,.03,.04);break;
+      case'spin':n(1100,t,.02,.06);break;
+      case'post':n(500,t,.035,.07,'triangle');break;
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1660,7 +1720,8 @@ class PongGame {
     this.puEffects={lBig:0,rBig:0,lShield:0,rShield:0,ballSpd:0,lSlow:0,rSlow:0,dpLeft:false,dpRight:false};
     this.ballSpeedMod=1;
     this.multiBalls=[];this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();
-    this.poolServeSide='left';this.poolMainRespawn=null;this.poolClackTick=0;this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
+    this.poolServeSide='left';this.poolMainRespawn=null;this.poolClackTick=0;
+    this.pinballLayout=null;this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
     this._loop=this._loop.bind(this);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,0);this._loop(0);
   }
 
@@ -1799,6 +1860,7 @@ class PongGame {
     if(this.ai){this.ai.update(this.paddleRight,[this.ball,...this.multiBalls],ch);if(this.puEffects.rSlow>0)this.paddleRight.vy*=.4;}
     this.paddleRight.update(ch);
     if(settings.gameVariant==='pool'){this._updatePoolMode();return;}
+    if(settings.gameVariant==='pinball'){this._updatePinballMode();return;}
     // original normal/frenzy/powerups ball processing
     this.ball.update();
     for(const b of this.multiBalls)b.update();
@@ -1985,6 +2047,185 @@ class PongGame {
     }
   }
   _poolResetClacks(){this.poolClackQueue=[];}
+
+  /* ---- PINBALL MODE ---- */
+  _ensurePinballLayout(){if(!this.pinballLayout)this.pinballLayout=createPinballLayout();}
+  _resetPinballState(){
+    if(!this.pinballLayout)return;
+    for(const b of this.pinballLayout.bumpers){b.cooldown=0;b.flash=0;}
+    for(const s of this.pinballLayout.slingshots){s.cooldown=0;s.flash=0;}
+    for(const p of this.pinballLayout.posts){p.cooldown=0;p.flash=0;}
+    const sps=this.pinballLayout.spinners;
+    sps[0].angle=Math.PI/2;sps[0].av=PINBALL.spinnerAng;sps[0].baseAv=PINBALL.spinnerAng;
+    sps[1].angle=Math.PI/2;sps[1].av=-PINBALL.spinnerAng;sps[1].baseAv=-PINBALL.spinnerAng;
+  }
+  _updatePinballMode(){
+    this._ensurePinballLayout();
+    const L=this.pinballLayout,ball=this.ball;
+    // Update spinner rotation
+    if(!this.paused){for(const s of L.spinners){s.angle+=s.av;s.av=s.av*PINBALL.spinnerFric+s.baseAv*(1-PINBALL.spinnerFric);}}
+    // Move ball
+    ball.prevX=ball.x;ball.prevY=ball.y;
+    const dt=this.tickRate/1000*.016; // approx per-tick delta
+    const spd=Math.hypot(ball.dx,ball.dy);
+    const br=ball.size/2;
+    const subs=Math.min(8,Math.max(1,Math.ceil(spd*dt/(br*PINBALL.substepRatio))));
+    const stepDx=ball.dx/subs,stepDy=ball.dy/subs;
+    for(let s=0;s<subs;s++){
+      ball.x+=stepDx;ball.y+=stepDy;
+      // Paddle collision
+      this._hitBallPaddles(ball);
+      // Bumpers
+      for(const b of L.bumpers){
+        const dist=Math.hypot(ball.x-b.x,ball.y-b.y),min=br+b.r;
+        if(dist>=min||dist<.001)continue;
+        const nx=(ball.x-b.x)/dist,ny=(ball.y-b.y)/dist;
+        ball.x=b.x+nx*min;ball.y=b.y+ny*min;
+        const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)continue;
+        ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
+        const rest=b.type==='large'?PINBALL.largeRestitution:PINBALL.mediumRestitution;
+        const ns=Math.min(PINBALL.maxSpeed,spd*rest+PINBALL.bumperBoost);
+        const nm=Math.hypot(ball.dx,ball.dy);if(nm>.001){ball.dx=ball.dx/nm*ns;ball.dy=ball.dy/nm*ns;}
+        ball.speed=ns;
+        if(b.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound(b.type==='large'?'bumper':'smBumper');
+        if(settings.effectsEnabled&&b.cooldown<=0){for(let i=0;i<6;i++)this.particles.push(new Particle(b.x,b.y,'#ffcc00'));}
+        b.cooldown=b.type==='large'?PINBALL.bCooldown:PINBALL.bCooldown;
+        b.flash=PINBALL.bFlash;
+      }
+      // Posts
+      for(const p of L.posts){
+        const dist=Math.hypot(ball.x-p.x,ball.y-p.y),min=br+p.r;
+        if(dist>=min||dist<.001)continue;
+        const nx=(ball.x-p.x)/dist,ny=(ball.y-p.y)/dist;
+        ball.x=p.x+nx*min;ball.y=p.y+ny*min;
+        const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)continue;
+        ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
+        if(p.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound('post');
+        p.cooldown=PINBALL.pCooldown;p.flash=PINBALL.bFlash;
+      }
+      // Slingshots
+      for(const sl of L.slingshots){
+        const a=sl.a;
+        for(let i=0;i<3;i++){
+          const p1=a[i],p2=a[(i+1)%3];
+          const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.hypot(dx,dy);
+          if(len<.001)continue;
+          const nx=dx/len,ny=dy/len;
+          const t=Math.max(0,Math.min(1,((ball.x-p1.x)*nx+(ball.y-p1.y)*ny)/len));
+          const cx=p1.x+nx*t*len,cy=p1.y+ny*t*len;
+          const dist=Math.hypot(ball.x-cx,ball.y-cy),thick=4;
+          if(dist>=br+thick)continue;
+          const nnx=(ball.x-cx)/Math.max(.001,dist),nny=(ball.y-cy)/Math.max(.001,dist);
+          ball.x+=nnx*(br+thick-dist);ball.y+=nny*(br+thick-dist);
+          const dot=ball.dx*nnx+ball.dy*nny;if(dot>=0)continue;
+          ball.dx-=2*dot*nnx;ball.dy-=2*dot*nny;
+          if(sl.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound('sling');
+          if(settings.effectsEnabled&&sl.cooldown<=0){for(let i=0;i<4;i++)this.particles.push(new Particle(cx,cy,'#ff6600'));}
+          sl.cooldown=PINBALL.sCooldown;sl.flash=PINBALL.sFlash;
+        }
+      }
+      // Rails
+      for(const r of L.rails){
+        const dx=r.x2-r.x1,dy=r.y2-r.y1,len=Math.hypot(dx,dy);
+        if(len<.001)continue;
+        const nx=dx/len,ny=dy/len;
+        const t=Math.max(0,Math.min(1,((ball.x-r.x1)*nx+(ball.y-r.y1)*ny)/len));
+        const cx=r.x1+nx*t*len,cy=r.y1+ny*t*len;
+        const dist=Math.hypot(ball.x-cx,ball.y-cy),thick=5;
+        if(dist>=br+thick)continue;
+        const nnx=(ball.x-cx)/Math.max(.001,dist),nny=(ball.y-cy)/Math.max(.001,dist);
+        ball.x+=nnx*(br+thick-dist);ball.y+=nny*(br+thick-dist);
+        const dot=ball.dx*nnx+ball.dy*nny;if(dot>=0)continue;
+        ball.dx-=2*dot*nnx;ball.dy-=2*dot*nny;
+        if(Math.abs(dot)>.5&&settings.soundEnabled)this.sound.playPinballSound('rail');
+      }
+      // Spinners
+      for(const sp of L.spinners){
+        const hl=PINBALL.spinnerLen/2;
+        const ex1=sp.x+Math.cos(sp.angle)*hl,ey1=sp.y+Math.sin(sp.angle)*hl;
+        const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;
+        const dx=ex2-ex1,dy=ey2-ey1,len=Math.hypot(dx,dy);
+        if(len<.001)continue;
+        const nx=dx/len,ny=dy/len;
+        const t=Math.max(0,Math.min(1,((ball.x-ex1)*nx+(ball.y-ey1)*ny)/len));
+        const cx=ex1+nx*t*len,cy=ey1+ny*t*len;
+        const dist=Math.hypot(ball.x-cx,ball.y-cy);
+        if(dist>=br+4)continue;
+        const nnx=(ball.x-cx)/Math.max(.001,dist),nny=(ball.y-cy)/Math.max(.001,dist);
+        ball.x+=nnx*(br+4-dist);ball.y+=nny*(br+4-dist);
+        const dot=ball.dx*nnx+ball.dy*nny;if(dot>=0)continue;
+        ball.dx-=2*dot*nnx;ball.dy-=2*dot*nny;
+        sp.av+=dot*PINBALL.spinnerTransfer/(hl);
+        if(settings.soundEnabled)this.sound.playPinballSound('spin');
+      }
+      // Top/bottom wall bounce
+      if(ball.y-br<=0){ball.y=br;ball.dy=Math.abs(ball.dy);}
+      if(ball.y+br>=CONFIG.canvasHeight){ball.y=CONFIG.canvasHeight-br;ball.dy=-Math.abs(ball.dy);}
+      // Goal check
+      if(ball.x+br<0){this.paddleRight.score++;this.serveDirection=-1;this.transition('goal');return;}
+      if(ball.x-br>CONFIG.canvasWidth){this.paddleLeft.score++;this.serveDirection=1;this.transition('goal');return;}
+    }
+    // Tick cooldowns
+    for(const b of L.bumpers){if(b.cooldown>0)b.cooldown--;if(b.flash>0)b.flash--;}
+    for(const s of L.slingshots){if(s.cooldown>0)s.cooldown--;if(s.flash>0)s.flash--;}
+    for(const p of L.posts){if(p.cooldown>0)p.cooldown--;if(p.flash>0)p.flash--;}
+    ball.speed=Math.hypot(ball.dx,ball.dy);
+  }
+  _hitBallPaddles(ball){
+    const bw=ball.size/2,pL=this.paddleLeft,pR=this.paddleRight;
+    if(ball.dx<0&&ball.x-bw<=pL.x+pL.width&&ball.x-bw>=pL.x&&ball.y+bw>=pL.y&&ball.y-bw<=pL.y+pL.height){this._hitBall(ball,pL,1);ball.lastTouchedBy='left';}
+    if(ball.dx>0&&ball.x+bw>=pR.x&&ball.x+bw<=pR.x+pR.width&&ball.y+bw>=pR.y&&ball.y-bw<=pR.y+pR.height){this._hitBall(ball,pR,-1);ball.lastTouchedBy='right';}
+  }
+  _drawPinballArena(ctx,w,h,theme){
+    const L=this.pinballLayout;
+    // Dark playfield
+    ctx.fillStyle='#101526';ctx.fillRect(0,0,w,h);
+    // Frame
+    ctx.strokeStyle='#3a3f4d';ctx.lineWidth=PINBALL.frameThickness;ctx.strokeRect(7,7,w-14,h-14);
+    ctx.strokeStyle='#8992a8';ctx.lineWidth=2;ctx.strokeRect(7,7,w-14,h-14);
+    // Symmetrical lane markings
+    ctx.strokeStyle=theme.accent;ctx.globalAlpha=.15;ctx.lineWidth=1;
+    ctx.setLineDash([4,8]);ctx.beginPath();ctx.moveTo(w/2,20);ctx.lineTo(w/2,h-20);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+    // Bumpers
+    for(const b of L.bumpers){
+      const glow=b.flash>0?1+b.flash/PINBALL.bFlash*.5:1;
+      ctx.fillStyle='#1a1a2e';ctx.beginPath();ctx.arc(b.x,b.y,b.r+2,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=b.type==='large'?'#c0392b':'#2980b9';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=2*glow;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
+      if(b.flash>0){ctx.fillStyle='rgba(255,255,255,'+(b.flash/PINBALL.bFlash*.4)+')';ctx.beginPath();ctx.arc(b.x,b.y,b.r+4,0,Math.PI*2);ctx.fill();}
+      // 3 dots around
+      for(let i=0;i<3;i++){const a=Math.PI*2/3*i;ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(b.x+Math.cos(a)*(b.r+6),b.y+Math.sin(a)*(b.r+6),2,0,Math.PI*2);ctx.fill();}
+    }
+    // Posts
+    for(const p of L.posts){
+      ctx.fillStyle='#333';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.stroke();
+    }
+    // Slingshots
+    for(const sl of L.slingshots){
+      const glow=sl.flash>0?1+sl.flash/PINBALL.sFlash*.3:1;
+      ctx.fillStyle='#1a1a2e';ctx.strokeStyle='#c0392b';ctx.lineWidth=3*glow;ctx.beginPath();
+      ctx.moveTo(sl.a[0].x,sl.a[0].y);for(let i=1;i<3;i++)ctx.lineTo(sl.a[i].x,sl.a[i].y);ctx.closePath();ctx.fill();ctx.stroke();
+      if(sl.flash>0){ctx.strokeStyle='rgba(255,150,0,'+(sl.flash/PINBALL.sFlash*.6)+')';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(sl.a[0].x,sl.a[0].y);for(let i=1;i<3;i++)ctx.lineTo(sl.a[i].x,sl.a[i].y);ctx.closePath();ctx.stroke();}
+    }
+    // Guide rails
+    ctx.strokeStyle='#8992a8';ctx.lineWidth=5;ctx.lineCap='round';
+    for(const r of L.rails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
+    ctx.strokeStyle='#3a3f4d';ctx.lineWidth=7;ctx.lineCap='round';
+    for(const r of L.rails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
+    // Spinners
+    for(const sp of L.spinners){
+      const hl=PINBALL.spinnerLen/2;
+      const ex1=sp.x+Math.cos(sp.angle)*hl,ey1=sp.y+Math.sin(sp.angle)*hl;
+      // Axle
+      ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
+      // Bar
+      ctx.strokeStyle='#8992a8';ctx.lineWidth=PINBALL.spinnerW;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(ex1,ey1);const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;ctx.lineTo(ex2,ey2);ctx.stroke();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=PINBALL.spinnerW-2;ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
+    }
+  }
+
   _ballCollision(a,b){
     const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy),min=(a.size+b.size)/2;
     if(dist<min&&dist>0){
@@ -2116,8 +2357,9 @@ class PongGame {
     const alpha=(this.state==='playing'&&!this.paused)?Math.min(this.accumulator/this.tickRate,1):1;
     ctx.fillStyle=settings.themeOverrideBg||theme.bg;ctx.fillRect(0,0,w,h);
 
-    // ---- POOL TABLE ----
+    // ---- POOL TABLE / PINBALL / NORMAL ARENA ----
     if(settings.gameVariant==='pool')this._drawPoolTable(ctx,w,h,theme);
+    else if(settings.gameVariant==='pinball'){this._ensurePinballLayout();this._drawPinballArena(ctx,w,h,theme);}
     else{
       ctx.strokeStyle=theme.centerLine;ctx.lineWidth=2;
       switch(theme.lineStyle){case'dashed':ctx.setLineDash([8,12]);break;case'dotted':ctx.setLineDash([3,8]);break;default:ctx.setLineDash([]);}
@@ -2313,8 +2555,8 @@ class MenuController {
     switch(a){
       case'play':this.startGame();break;
       case'toggle-gamemode':
-        settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'frenzy':settings.gameVariant==='frenzy'?'pool':'classic';
-        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':settings.gameVariant==='pool'?'POOL':'POWER UPS';break;
+        settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'frenzy':settings.gameVariant==='frenzy'?'pool':settings.gameVariant==='pool'?'pinball':'classic';
+        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':settings.gameVariant==='pool'?'POOL':settings.gameVariant==='pinball'?'PINBALL':'POWER UPS';break;
       case'cycle-mode':{
         if(settings.gameMode==='pvp'){settings.gameMode='ai';settings.difficulty='easy';}
         else if(settings.difficulty==='easy')settings.difficulty='medium';

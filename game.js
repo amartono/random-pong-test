@@ -243,35 +243,44 @@ const PINBALL = {
 function mirrorX(x,aw){return aw-x;}
 function createPinballLayout(aw,ah){
   const w=aw,h=ah,M=(x)=>w-x;
-  const llb={x:w*.3125,y:h*.29,r:PINBALL.largeR,type:'large'};
-  const llb2={x:w*.3125,y:h*.71,r:PINBALL.largeR,type:'large'};
-  // Right mirror
-  const rlb={x:M(llb.x),y:llb.y,r:PINBALL.largeR,type:'large'};
-  const rlb2={x:M(llb2.x),y:llb2.y,r:PINBALL.largeR,type:'large'};
-  // Medium inner bumpers
-  const lmb={x:w*.3875,y:h*.50,r:PINBALL.mediumR,type:'medium'};
-  const rmb={x:M(lmb.x),y:lmb.y,r:PINBALL.mediumR,type:'medium'};
-  // Posts
-  const lp={x:w*.145,y:h*.50,r:PINBALL.postR,type:'post'};
-  const rp={x:M(lp.x),y:lp.y,r:PINBALL.postR,type:'post'};
-  // Spinners
-  const ls={x:w*.4625,y:h*.50};
-  const rs={x:w*.5375,y:h*.50};
-  // Left slingshots (upper/lower mirrored)
-  const lsu={a:[{x:135,y:120},{x:200,y:165},{x:145,y:210}]};
-  const lsl={a:[{x:135,y:380},{x:200,y:335},{x:145,y:290}]};
+  // --- Large bumpers (2 per side, 4 total) ---
+  const llb=[{x:300,y:145,r:27,type:'large'},{x:300,y:355,r:27,type:'large'}];
+  const rlb=llb.map(b=>({...b,x:M(b.x)}));
+  // --- Medium bumpers (2 per side, 4 total) ---
+  const lmb=[{x:420,y:205,r:18,type:'medium'},{x:420,y:295,r:18,type:'medium'}];
+  const rmb=lmb.map(b=>({...b,x:M(b.x)}));
+  // --- Kickers (2 per side, 4 total) ---
+  const lk=[{x:500,y:105,r:13,type:'kicker'},{x:500,y:395,r:13,type:'kicker'}];
+  const rk=lk.map(b=>({...b,x:M(b.x)}));
+  // --- Posts (2 per side, 4 total) ---
+  const lp=[{x:205,y:225,r:9,type:'post'},{x:205,y:275,r:9,type:'post'}];
+  const rp=lp.map(b=>({...b,x:M(b.x)}));
+  // --- Slingshots (2 per side, 4 total) ---
+  const lsu={a:[{x:145,y:100},{x:245,y:155},{x:165,y:220}]};
+  const lsl={a:[{x:145,y:400},{x:245,y:345},{x:165,y:280}]};
   const rsu={a:lsu.a.map(p=>({x:M(p.x),y:p.y}))};
   const rsl={a:lsl.a.map(p=>({x:M(p.x),y:p.y}))};
-  // Guide rails (capsule segments)
-  const lgr=[{x1:82,y1:70,x2:175,y2:112},{x1:82,y1:430,x2:175,y2:388}];
+  // --- Outer rails (2 per side, 4 total) ---
+  const lgr=[{x1:110,y1:60,x2:235,y2:100},{x1:110,y1:440,x2:235,y2:400}];
   const rgr=lgr.map(r=>({x1:M(r.x1),y1:r.y1,x2:M(r.x2),y2:r.y2}));
+  // --- Inner rails (2 per side, 4 total) ---
+  const lir=[{x1:345,y1:70,x2:465,y2:112},{x1:345,y1:430,x2:465,y2:388}];
+  const rir=lir.map(r=>({x1:M(r.x1),y1:r.y1,x2:M(r.x2),y2:r.y2}));
+  // --- Spinners (4 total: 2 upper, 2 lower, mirrored) ---
+  const spinners=[
+    {x:505,y:190,len:42,angle:Math.PI/2,av:PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
+    {x:595,y:190,len:42,angle:Math.PI/2,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng},
+    {x:505,y:310,len:42,angle:Math.PI/2,av:PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
+    {x:595,y:310,len:42,angle:Math.PI/2,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng},
+  ];
   return {
-    bumpers:[llb,llb2,rlb,rlb2,lmb,rmb],
-    posts:[lp,rp],
+    bumpers:[...llb,...rlb,...lmb,...rmb],
+    kickers:[...lk,...rk],
+    posts:[...lp,...rp],
     slingshots:[lsu,lsl,rsu,rsl],
     rails:[...lgr,...rgr],
-    spinners:[{...ls,angle:Math.PI/2,av: PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
-              {...rs,angle:Math.PI/2,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng}]
+    innerRails:[...lir,...rir],
+    spinners,
   };
 }
 
@@ -2094,6 +2103,21 @@ class PongGame {
         b.cooldown=b.type==='large'?PINBALL.bCooldown:PINBALL.bCooldown;
         b.flash=PINBALL.bFlash;
       }
+      // Kickers
+      if(L.kickers){for(const k of L.kickers){
+        const dist=Math.hypot(ball.x-k.x,ball.y-k.y),min=br+k.r;
+        if(dist>=min||dist<.001)continue;
+        const nx=(ball.x-k.x)/dist,ny=(ball.y-k.y)/dist;
+        ball.x=k.x+nx*min;ball.y=k.y+ny*min;
+        const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)continue;
+        ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
+        const ns=Math.min(PINBALL.maxSpeed,spd*1.08+.2);
+        const nm=Math.hypot(ball.dx,ball.dy);if(nm>.001){ball.dx=ball.dx/nm*ns;ball.dy=ball.dy/nm*ns;}
+        ball.speed=ns;
+        if(k.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound('bumper');
+        if(settings.effectsEnabled&&k.cooldown<=0){for(let i=0;i<4;i++)this.particles.push(new Particle(k.x,k.y,'#cc88ff'));}
+        k.cooldown=PINBALL.bCooldown;k.flash=9;
+      }}
       // Posts
       for(const p of L.posts){
         const dist=Math.hypot(ball.x-p.x,ball.y-p.y),min=br+p.r;
@@ -2218,14 +2242,25 @@ class PongGame {
     for(const r of L.rails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
     // Spinners
     for(const sp of L.spinners){
-      const hl=PINBALL.spinnerLen/2;
+      const hl=(sp.len||PINBALL.spinnerLen)/2;
       const ex1=sp.x+Math.cos(sp.angle)*hl,ey1=sp.y+Math.sin(sp.angle)*hl;
-      // Axle
+      const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;
       ctx.fillStyle=accent;ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
-      // Bar
       ctx.strokeStyle='#8992a8';ctx.lineWidth=PINBALL.spinnerW;ctx.lineCap='round';
-      ctx.beginPath();ctx.moveTo(ex1,ey1);const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;ctx.lineTo(ex2,ey2);ctx.stroke();
-      ctx.strokeStyle=accent;ctx.lineWidth=PINBALL.spinnerW-2;ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
+      ctx.strokeStyle=accent;ctx.lineWidth=PINBALL.spinnerW-2;
+      ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
+    }
+    // Kickers
+    if(L.kickers){for(const k of L.kickers){
+      const g=k.flash>0?1+k.flash/9*.4:1;
+      ctx.fillStyle='#2a1040';ctx.beginPath();ctx.arc(k.x,k.y,k.r+3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#8844cc';ctx.beginPath();ctx.arc(k.x,k.y,k.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=accent;ctx.lineWidth=2*g;ctx.beginPath();ctx.arc(k.x,k.y,k.r,0,Math.PI*2);ctx.stroke();
+    }}
+    // Inner rails
+    if(L.innerRails){ctx.strokeStyle='#8992a8';ctx.lineWidth=4;ctx.lineCap='round';
+      for(const r of L.innerRails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
     }
   }
 

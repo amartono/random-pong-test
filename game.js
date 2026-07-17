@@ -22,6 +22,8 @@ const CONFIG = {
   winMargin: 2,
 };
 
+const STAGE = {normal:{w:800,h:500},pinball:{w:1100,h:500}};
+
 /* ---- power-up types ---- */
 const POWERUP_TYPES = [
   { id:'bigPaddle',label:'BIG',color:'#44aaff',dur:960 },
@@ -238,10 +240,9 @@ const PINBALL = {
   spinnerLen:44,spinnerW:7,spinnerAng:0.035,spinnerTransfer:0.20,spinnerFric:0.995,
   substepRatio:0.45
 };
-function mirrorX(x){return CONFIG.canvasWidth-x;}
-function createPinballLayout(){
-  const w=CONFIG.canvasWidth,h=CONFIG.canvasHeight;
-  // Left-side large bumpers
+function mirrorX(x,aw){return aw-x;}
+function createPinballLayout(aw,ah){
+  const w=aw,h=ah,M=(x)=>w-x;
   const llb={x:w*.3125,y:h*.29,r:PINBALL.largeR,type:'large'};
   const llb2={x:w*.3125,y:h*.71,r:PINBALL.largeR,type:'large'};
   // Right mirror
@@ -2049,15 +2050,17 @@ class PongGame {
   _poolResetClacks(){this.poolClackQueue=[];}
 
   /* ---- PINBALL MODE ---- */
-  _ensurePinballLayout(){if(!this.pinballLayout)this.pinballLayout=createPinballLayout();}
+  _ensurePinballLayout(){
+    const aw=this.canvas.width,ah=this.canvas.height;
+    if(!this.pinballLayout||this.pinballLayout._aw!==aw)this.pinballLayout=createPinballLayout(aw,ah);
+    this.pinballLayout._aw=aw;
+  }
   _resetPinballState(){
     if(!this.pinballLayout)return;
     for(const b of this.pinballLayout.bumpers){b.cooldown=0;b.flash=0;}
     for(const s of this.pinballLayout.slingshots){s.cooldown=0;s.flash=0;}
     for(const p of this.pinballLayout.posts){p.cooldown=0;p.flash=0;}
-    const sps=this.pinballLayout.spinners;
-    sps[0].angle=Math.PI/2;sps[0].av=PINBALL.spinnerAng;sps[0].baseAv=PINBALL.spinnerAng;
-    sps[1].angle=Math.PI/2;sps[1].av=-PINBALL.spinnerAng;sps[1].baseAv=-PINBALL.spinnerAng;
+    for(const sp of this.pinballLayout.spinners){sp.av=sp.baseAv;sp.angle=Math.PI/2;}
   }
   _updatePinballMode(){
     this._ensurePinballLayout();
@@ -2066,10 +2069,9 @@ class PongGame {
     if(!this.paused){for(const s of L.spinners){s.angle+=s.av;s.av=s.av*PINBALL.spinnerFric+s.baseAv*(1-PINBALL.spinnerFric);}}
     // Move ball
     ball.prevX=ball.x;ball.prevY=ball.y;
-    const dt=this.tickRate/1000*.016; // approx per-tick delta
     const spd=Math.hypot(ball.dx,ball.dy);
     const br=ball.size/2;
-    const subs=Math.min(8,Math.max(1,Math.ceil(spd*dt/(br*PINBALL.substepRatio))));
+    const subs=Math.min(12,Math.max(1,Math.ceil(spd/(br*.35+2))));
     const stepDx=ball.dx/subs,stepDy=ball.dy/subs;
     for(let s=0;s<subs;s++){
       ball.x+=stepDx;ball.y+=stepDy;
@@ -2160,10 +2162,10 @@ class PongGame {
       }
       // Top/bottom wall bounce
       if(ball.y-br<=0){ball.y=br;ball.dy=Math.abs(ball.dy);}
-      if(ball.y+br>=CONFIG.canvasHeight){ball.y=CONFIG.canvasHeight-br;ball.dy=-Math.abs(ball.dy);}
+      if(ball.y+br>=this.canvas.height){ball.y=this.canvas.height-br;ball.dy=-Math.abs(ball.dy);}
       // Goal check
       if(ball.x+br<0){this.paddleRight.score++;this.serveDirection=-1;this.transition('goal');return;}
-      if(ball.x-br>CONFIG.canvasWidth){this.paddleLeft.score++;this.serveDirection=1;this.transition('goal');return;}
+      if(ball.x-br>this.canvas.width){this.paddleLeft.score++;this.serveDirection=1;this.transition('goal');return;}
     }
     // Tick cooldowns
     for(const b of L.bumpers){if(b.cooldown>0)b.cooldown--;if(b.flash>0)b.flash--;}
@@ -2353,7 +2355,7 @@ class PongGame {
   /* ---- drawing ---- */
   _draw(ts){
     if(!this.active)return;
-    const ctx=this.ctx,w=CONFIG.canvasWidth,h=CONFIG.canvasHeight,theme=this.getTheme();
+    const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height,theme=this.getTheme();
     const alpha=(this.state==='playing'&&!this.paused)?Math.min(this.accumulator/this.tickRate,1):1;
     ctx.fillStyle=settings.themeOverrideBg||theme.bg;ctx.fillRect(0,0,w,h);
 
@@ -2493,12 +2495,25 @@ class MenuController {
 
   showMainMenu(){
     this.game.state='idle';this.game.active=false;this.game.paused=false;
+    this.game.pinballLayout=null;
+    const s=STAGE.normal;
+    document.documentElement.style.setProperty('--stage-w',s.w+'px');
+    document.documentElement.style.setProperty('--stage-h',s.h+'px');
+    document.documentElement.style.setProperty('--stage-ratio',(s.w/s.h));
+    this.game.canvas.width=s.w;this.game.canvas.height=s.h;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
     [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor,this.menuBallPaint].forEach(m=>m.classList.add('hidden'));
     this.pauseOverlay.classList.add('hidden');this.scoreboard.classList.add('hidden');
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
   startGame(){
+    const isPin=settings.gameVariant==='pinball';
+    const s=isPin?STAGE.pinball:STAGE.normal;
+    document.documentElement.style.setProperty('--stage-w',s.w+'px');
+    document.documentElement.style.setProperty('--stage-h',s.h+'px');
+    document.documentElement.style.setProperty('--stage-ratio',(s.w/s.h));
+    this.game.canvas.width=s.w;this.game.canvas.height=s.h;
+    this.game.pinballLayout=null;
     this.menuOverlay.classList.add('hidden');this.pauseOverlay.classList.add('hidden');
     this.scoreboard.classList.remove('hidden');this.themeSwitcher.classList.remove('hidden');
     this.controlsBar.classList.remove('hidden');

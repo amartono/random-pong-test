@@ -5,6 +5,9 @@
 /* ================================================================== */
 
 :root {
+  --stage-w: 800px;
+  --stage-h: 500px;
+  --stage-ratio: 8 / 5;
   --bg: #111;
   --canvas-bg: #000;
   --text: #fff;
@@ -47,13 +50,30 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  width: 800px;
+  width: min(var(--stage-w), calc(100vw - 16px));
 }
-
-/* ================================================================== */
-/*  SCOREBOARD                                                         */
-/* ================================================================== */
-
+.arena-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--stage-ratio);
+  height: auto;
+}
+#gameCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--accent);
+  border-radius: 2px;
+  box-shadow: var(--accent-glow);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.menu-overlay,
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
 .scoreboard {
   display: flex;
   align-items: center;

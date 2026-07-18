@@ -241,68 +241,61 @@ const PINBALL = {
   substepRatio:0.45
 };
 function mirrorX(x){return CONFIG.canvasWidth-x;}
-function pointInPolygon(px,py,poly){
-  let inside=false;
-  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
-    const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;
-    if((yi>py)!==(yj>py)&&px<(xj-xi)*(py-yi)/(yj-yi)+xi)inside=!inside;
-  }
-  return inside;
-}
 function createPinballLayout(){
   const w=CONFIG.canvasWidth,h=CONFIG.canvasHeight;
-  const M=(x)=>w-x; // mirror helper
-  // --- Shared obstacle registry (draw+collision from same data) ---
-  const L={circles:[],segments:[],polygons:[],spinners:[]};
-
-  // Large bumpers: 2 per side (4 total) at (325,150)/(325,350) + mirrors
-  L.circles.push({id:'large-lu',x:325,y:150,r:27,type:'large',cooldown:0,flash:0});
-  L.circles.push({id:'large-ll',x:325,y:350,r:27,type:'large',cooldown:0,flash:0});
-  L.circles.push({id:'large-ru',x:M(325),y:150,r:27,type:'large',cooldown:0,flash:0});
-  L.circles.push({id:'large-rl',x:M(325),y:350,r:27,type:'large',cooldown:0,flash:0});
-  // Medium bumpers: 1 per side (2 total) at (450,250)
-  L.circles.push({id:'med-l',x:450,y:250,r:19,type:'medium',cooldown:0,flash:0});
-  L.circles.push({id:'med-r',x:M(450),y:250,r:19,type:'medium',cooldown:0,flash:0});
-  // Kickers: 2 per side (4 total)
-  L.circles.push({id:'kick-lu',x:535,y:120,r:13,type:'kicker',cooldown:0,flash:0});
-  L.circles.push({id:'kick-ll',x:535,y:380,r:13,type:'kicker',cooldown:0,flash:0});
-  L.circles.push({id:'kick-ru',x:M(535),y:120,r:13,type:'kicker',cooldown:0,flash:0});
-  L.circles.push({id:'kick-rl',x:M(535),y:380,r:13,type:'kicker',cooldown:0,flash:0});
-  // Posts: 2 per side (4 total)
-  L.circles.push({id:'post-lu',x:210,y:225,r:9,type:'post',cooldown:0,flash:0});
-  L.circles.push({id:'post-ll',x:210,y:275,r:9,type:'post',cooldown:0,flash:0});
-  L.circles.push({id:'post-ru',x:M(210),y:225,r:9,type:'post',cooldown:0,flash:0});
-  L.circles.push({id:'post-rl',x:M(210),y:275,r:9,type:'post',cooldown:0,flash:0});
-
-  // Slingshots: triangle polygons (2 per side, 4 total)
-  const lsu={a:[{x:155,y:100},{x:250,y:155},{x:175,y:215}]};
-  const lsl={a:[{x:155,y:400},{x:250,y:345},{x:175,y:285}]};
-  L.polygons.push({id:'sling-lu',a:lsu.a,cooldown:0,flash:0});
-  L.polygons.push({id:'sling-ll',a:lsl.a,cooldown:0,flash:0});
-  L.polygons.push({id:'sling-ru',a:lsu.a.map(p=>({x:M(p.x),y:p.y})),cooldown:0,flash:0});
-  L.polygons.push({id:'sling-rl',a:lsl.a.map(p=>({x:M(p.x),y:p.y})),cooldown:0,flash:0});
-
-  // Outer guide rails: capsule segments (2 per side, 4 total)
-  L.segments.push({id:'rail-ot-l',x1:125,y1:65,x2:245,y2:105,thick:9,cooldown:0});
-  L.segments.push({id:'rail-ob-l',x1:125,y1:435,x2:245,y2:395,thick:9,cooldown:0});
-  L.segments.push({id:'rail-ot-r',x1:M(245),y1:65,x2:M(125),y2:105,thick:9,cooldown:0});
-  L.segments.push({id:'rail-ob-r',x1:M(245),y1:435,x2:M(125),y2:395,thick:9,cooldown:0});
-  // Inner guide rails: capsule segments (2 per side, 4 total)
-  L.segments.push({id:'rail-it-l',x1:385,y1:75,x2:500,y2:115,thick:7,cooldown:0});
-  L.segments.push({id:'rail-ib-l',x1:385,y1:425,x2:500,y2:385,thick:7,cooldown:0});
-  L.segments.push({id:'rail-it-r',x1:M(500),y1:75,x2:M(385),y2:115,thick:7,cooldown:0});
-  L.segments.push({id:'rail-ib-r',x1:M(500),y1:425,x2:M(385),y2:385,thick:7,cooldown:0});
-
-  // Diamonds: polygon (1 per side, 2 total)
-  const ld={a:[{x:500,y:218},{x:526,y:250},{x:500,y:282},{x:474,y:250}]};
-  L.polygons.push({id:'diamond-l',a:ld.a});
-  L.polygons.push({id:'diamond-r',a:ld.a.map(p=>({x:M(p.x),y:p.y}))});
-
-  // Spinners: 2 center
-  L.spinners.push({id:'spinner-l',x:550,y:250,len:48,angle:Math.PI/2,av:PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng});
-  L.spinners.push({id:'spinner-r',x:650,y:250,len:48,angle:Math.PI/2,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng});
-
-  return L;
+  // --- Large bumpers (3 per side, 6 total) ---
+  const llb=[{x:300,y:125,r:25,type:'large'},{x:350,y:250,r:27,type:'large'},{x:300,y:375,r:25,type:'large'}];
+  const rlb=llb.map(b=>({...b,x:mirrorX(b.x)}));
+  // --- Medium bumpers (2 per side, 4 total) ---
+  const lmb=[{x:455,y:170,r:18,type:'medium'},{x:455,y:330,r:18,type:'medium'}];
+  const rmb=lmb.map(b=>({...b,x:mirrorX(b.x)}));
+  // --- Kickers (2 per side, 4 total) ---
+  const lk=[{x:560,y:150,r:13,type:'kicker'},{x:560,y:350,r:13,type:'kicker'}];
+  const rk=lk.map(b=>({...b,x:mirrorX(b.x)}));
+  // --- Posts (2 per side, 4 total) ---
+  const lp=[{x:205,y:210,r:9,type:'post'},{x:205,y:290,r:9,type:'post'}];
+  const rp=lp.map(b=>({...b,x:mirrorX(b.x)}));
+  // --- Slingshots (2 per side, 4 total) ---
+  const lsu={a:[{x:155,y:105},{x:235,y:150},{x:170,y:215}]};
+  const lsl={a:[{x:155,y:395},{x:235,y:350},{x:170,y:285}]};
+  const rsu={a:lsu.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
+  const rsl={a:lsl.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
+  // --- Outer guide rails (3 per side, 6 total) ---
+  const lgr=[{x1:105,y1:55,x2:225,y2:95},{x1:145,y1:235,x2:190,y2:250},{x1:105,y1:445,x2:225,y2:405}];
+  const rgr=lgr.map(r=>({x1:mirrorX(r.x1),y1:r.y1,x2:mirrorX(r.x2),y2:r.y2}));
+  // --- Inner rebound rails (2 per side, 4 total) ---
+  const lir=[{x1:390,y1:90,x2:495,y2:125},{x1:390,y1:410,x2:495,y2:375}];
+  const rir=lir.map(r=>({x1:mirrorX(r.x1),y1:r.y1,x2:mirrorX(r.x2),y2:r.y2}));
+  // --- Spinners: inner pair (2) + outer pair (2) = 4 total ---
+  const spinners=[
+    {x:565,y:250,len:42,angle:Math.PI/2,av:PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
+    {x:635,y:250,len:42,angle:Math.PI/2,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng},
+    {x:420,y:250,len:48,angle:Math.PI/4,av:PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
+    {x:780,y:250,len:48,angle:-Math.PI/4,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng},
+  ];
+  // --- Central diamonds (2) ---
+  const ld={a:[{x:535,y:218},{x:560,y:250},{x:535,y:282},{x:510,y:250}]};
+  const rd={a:ld.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
+  // --- Lane gates (2 per side, 4 total) ---
+  const lgates=[{x:265,y:80,len:30,angle:.35,restAngle:.35,av:0},
+               {x:265,y:420,len:30,angle:-.35,restAngle:-.35,av:0}];
+  const rgates=lgates.map(g=>({...g,x:mirrorX(g.x),restAngle:-g.restAngle,angle:-g.angle}));
+  // --- Rollover lane indicators (decorative, per side) ---
+  const lanes=[{pts:[{x:230,y:70},{x:280,y:82},{x:310,y:105}]},
+              {pts:[{x:230,y:430},{x:280,y:418},{x:310,y:395}]}];
+  const rlanes=lanes.map(l=>({pts:l.pts.map(p=>({x:mirrorX(p.x),y:p.y}))}));
+  return {
+    bumpers:[...llb,...rlb,...lmb,...rmb],
+    kickers:[...lk,...rk],
+    posts:[...lp,...rp],
+    slingshots:[lsu,lsl,rsu,rsl],
+    rails:[...lgr,...rgr],
+    innerRails:[...lir,...rir],
+    spinners,
+    diamonds:[ld,rd],
+    gates:[...lgates,...rgates],
+    lanes:[...lanes,...rlanes],
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1763,11 +1756,17 @@ class PongGame {
   }
   restart(){this.paused=false;this._applyArenaDimensions();this._resetGame();this.transition('serving');}
   _applyArenaDimensions(){
-    const w=CONFIG.canvasWidth,h=CONFIG.canvasHeight;
+    const isPin=settings.gameVariant==='pinball';
+    const w=isPin?CONFIG.PINBALL_W:CONFIG.NORMAL_W;
+    const h=isPin?CONFIG.PINBALL_H:CONFIG.NORMAL_H;
+    if(CONFIG.canvasWidth===w&&CONFIG.canvasHeight===h)return;
+    CONFIG.canvasWidth=w;CONFIG.canvasHeight=h;
     this.canvas.width=w;this.canvas.height=h;
-    document.documentElement.style.setProperty('--arena-w',w+'px');
-    const wrap=document.querySelector('.game-wrapper');
-    if(wrap)wrap.style.width=w+'px';
+    this.ball.prevX=this.ball.x=w/2;this.ball.prevY=this.ball.y=h/2;this.ball.dx=this.ball.dy=0;
+    this.paddleLeft.x=CONFIG.paddleMargin;this.paddleLeft.y=h/2-45;
+    this.paddleRight.x=w-CONFIG.paddleMargin-settings.paddleWidth;
+    this.paddleRight.y=h/2-45;
+    this.pinballLayout=isPin?createPinballLayout():null;
   }
   _applySettings(){this._applyThemeAndColors();if(settings.gameVariant!=='frenzy'){if(/^\d+ball$/.test(settings.ballSkin)&&settings.ballSkin!=='8ball')settings.ballSkin='8ball';this.ball.skin=settings.ballSkin;}applyThemeCSS(settings.theme);}
   _applyThemeAndColors(){
@@ -2086,112 +2085,113 @@ class PongGame {
   }
   _poolResetClacks(){this.poolClackQueue=[];}
 
-  /* ---- PINBALL MODE (unified registry: circles, segments, polygons, spinners) ---- */
+  /* ---- PINBALL MODE ---- */
   _ensurePinballLayout(){if(!this.pinballLayout)this.pinballLayout=createPinballLayout();}
   _resetPinballState(){
-    const L=this.pinballLayout;if(!L)return;
-    for(const c of L.circles){c.cooldown=0;c.flash=0;}
-    for(const s of L.segments){s.cooldown=0;}
-    for(const p of L.polygons){p.cooldown=0;p.flash=0;}
-    for(const sp of L.spinners){sp.av=sp.baseAv;sp.angle=Math.PI/2;}
+    if(!this.pinballLayout)return;
+    for(const b of this.pinballLayout.bumpers){b.cooldown=0;b.flash=0;}
+    for(const s of this.pinballLayout.slingshots){s.cooldown=0;s.flash=0;}
+    for(const p of this.pinballLayout.posts){p.cooldown=0;p.flash=0;}
+    if(this.pinballLayout.kickers)for(const k of this.pinballLayout.kickers){k.cooldown=0;k.flash=0;}
+    for(const sp of this.pinballLayout.spinners){sp.av=sp.baseAv;}
   }
   _updatePinballMode(){
     this._ensurePinballLayout();
     const L=this.pinballLayout,ball=this.ball;
-    if(!this.paused){for(const sp of L.spinners){sp.angle+=sp.av;sp.av=sp.av*PINBALL.spinnerFric+sp.baseAv*(1-PINBALL.spinnerFric);}}
+    // Update spinner rotation
+    if(!this.paused){for(const s of L.spinners){s.angle+=s.av;s.av=s.av*PINBALL.spinnerFric+s.baseAv*(1-PINBALL.spinnerFric);}}
+    // Move ball
     ball.prevX=ball.x;ball.prevY=ball.y;
-    const spd=Math.hypot(ball.dx,ball.dy),br=ball.size/2;
-    const subs=Math.min(12,Math.max(1,Math.ceil(spd/(br*.35+2))));
-    const sx=ball.dx/subs,sy=ball.dy/subs;
+    const dt=this.tickRate/1000*.016; // approx per-tick delta
+    const spd=Math.hypot(ball.dx,ball.dy);
+    const br=ball.size/2;
+    const subs=Math.min(8,Math.max(1,Math.ceil(spd*dt/(br*PINBALL.substepRatio))));
+    const stepDx=ball.dx/subs,stepDy=ball.dy/subs;
     for(let s=0;s<subs;s++){
-      ball.x+=sx;ball.y+=sy;
-      // Paddles
+      ball.x+=stepDx;ball.y+=stepDy;
+      // Paddle collision
       this._hitBallPaddles(ball);
-      // All circles (bumpers, kickers, posts)
-      for(const c of L.circles){
-        const dist=Math.hypot(ball.x-c.x,ball.y-c.y),min=br+c.r;
+      // Bumpers
+      for(const b of L.bumpers){
+        const dist=Math.hypot(ball.x-b.x,ball.y-b.y),min=br+b.r;
         if(dist>=min||dist<.001)continue;
-        const nx=(ball.x-c.x)/dist,ny=(ball.y-c.y)/dist;
-        ball.x=c.x+nx*min;ball.y=c.y+ny*min;
+        const nx=(ball.x-b.x)/dist,ny=(ball.y-b.y)/dist;
+        ball.x=b.x+nx*min;ball.y=b.y+ny*min;
         const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)continue;
         ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
-        const rest=c.type==='large'?PINBALL.largeRestitution:c.type==='medium'?PINBALL.mediumRestitution:1.02;
-        const boost=c.type==='kicker'?.25:c.type==='post'?0:PINBALL.bumperBoost;
-        const ns=Math.min(PINBALL.maxSpeed,spd*rest+boost);
+        const rest=b.type==='large'?PINBALL.largeRestitution:PINBALL.mediumRestitution;
+        const ns=Math.min(PINBALL.maxSpeed,spd*rest+PINBALL.bumperBoost);
         const nm=Math.hypot(ball.dx,ball.dy);if(nm>.001){ball.dx=ball.dx/nm*ns;ball.dy=ball.dy/nm*ns;}
         ball.speed=ns;
-        if(c.cooldown<=0&&settings.soundEnabled){
-          this.sound.playPinballSound(c.type==='large'?'bumper':c.type==='medium'?'smBumper':c.type==='kicker'?'bumper':'post');
-        }
-        if(settings.effectsEnabled&&c.cooldown<=0){for(let i=0;i<5;i++)this.particles.push(new Particle(c.x,c.y,c.type==='kicker'?'#cc88ff':'#ffcc00'));}
-        c.cooldown=c.type==='large'||c.type==='kicker'?PINBALL.bCooldown:PINBALL.pCooldown;
-        c.flash=c.type==='large'?PINBALL.bFlash:c.type==='kicker'?9:PINBALL.bFlash;
+        if(b.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound(b.type==='large'?'bumper':'smBumper');
+        if(settings.effectsEnabled&&b.cooldown<=0){for(let i=0;i<6;i++)this.particles.push(new Particle(b.x,b.y,'#ffcc00'));}
+        b.cooldown=b.type==='large'?PINBALL.bCooldown:PINBALL.bCooldown;
+        b.flash=PINBALL.bFlash;
       }
-      // Segments (rails)
-      for(const seg of L.segments){
-        const dx=seg.x2-seg.x1,dy=seg.y2-seg.y1,len=Math.hypot(dx,dy);
-        if(len<.001)continue;
-        const nx=dx/len,ny=dy/len;
-        const t=Math.max(0,Math.min(1,((ball.x-seg.x1)*nx+(ball.y-seg.y1)*ny)/len));
-        const cx=seg.x1+nx*t*len,cy=seg.y1+ny*t*len;
-        const dist=Math.hypot(ball.x-cx,ball.y-cy),thick=seg.thick/2;
-        if(dist>=br+thick)continue;
-        const nnx=(ball.x-cx)/Math.max(.001,dist),nny=(ball.y-cy)/Math.max(.001,dist);
-        ball.x+=nnx*(br+thick-dist);ball.y+=nny*(br+thick-dist);
-        const dot=ball.dx*nnx+ball.dy*nny;if(dot>=0)continue;
-        ball.dx-=2*dot*nnx;ball.dy-=2*dot*nny;
-        if(Math.abs(dot)>.5&&seg.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound('rail');
-        seg.cooldown=PINBALL.pCooldown;
+      // Kickers (if present)
+      if(L.kickers){for(const k of L.kickers){
+        const dist=Math.hypot(ball.x-k.x,ball.y-k.y),min=br+k.r;
+        if(dist>=min||dist<.001)continue;
+        const nx=(ball.x-k.x)/dist,ny=(ball.y-k.y)/dist;
+        ball.x=k.x+nx*min;ball.y=k.y+ny*min;
+        const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)continue;
+        ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
+        const ns=Math.min(PINBALL.maxSpeed,spd*1.08+.2);
+        const nm=Math.hypot(ball.dx,ball.dy);if(nm>.001){ball.dx=ball.dx/nm*ns;ball.dy=ball.dy/nm*ns;}
+        ball.speed=ns;
+        if(k.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound('bumper');
+        k.cooldown=PINBALL.bCooldown;k.flash=9;
+      }}
+      // Posts
+      for(const p of L.posts){
+        const dist=Math.hypot(ball.x-p.x,ball.y-p.y),min=br+p.r;
+        if(dist>=min||dist<.001)continue;
+        const nx=(ball.x-p.x)/dist,ny=(ball.y-p.y)/dist;
+        ball.x=p.x+nx*min;ball.y=p.y+ny*min;
+        const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)continue;
+        ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
+        if(p.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound('post');
+        p.cooldown=PINBALL.pCooldown;p.flash=PINBALL.bFlash;
       }
-      // Polygons (slingshots + diamonds)
-      for(const poly of L.polygons){
-        const a=poly.a;let hit=false;
-        // Edge collision
-        for(let i=0;i<a.length;i++){
-          const p1=a[i],p2=a[(i+1)%a.length];
+      // Slingshots
+      for(const sl of L.slingshots){
+        const a=sl.a;
+        for(let i=0;i<3;i++){
+          const p1=a[i],p2=a[(i+1)%3];
           const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.hypot(dx,dy);
           if(len<.001)continue;
           const nx=dx/len,ny=dy/len;
           const t=Math.max(0,Math.min(1,((ball.x-p1.x)*nx+(ball.y-p1.y)*ny)/len));
           const cx=p1.x+nx*t*len,cy=p1.y+ny*t*len;
-          const dist=Math.hypot(ball.x-cx,ball.y-cy),thick=3;
+          const dist=Math.hypot(ball.x-cx,ball.y-cy),thick=4;
           if(dist>=br+thick)continue;
           const nnx=(ball.x-cx)/Math.max(.001,dist),nny=(ball.y-cy)/Math.max(.001,dist);
           ball.x+=nnx*(br+thick-dist);ball.y+=nny*(br+thick-dist);
           const dot=ball.dx*nnx+ball.dy*nny;if(dot>=0)continue;
           ball.dx-=2*dot*nnx;ball.dy-=2*dot*nny;
-          hit=true;
+          if(sl.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound('sling');
+          if(settings.effectsEnabled&&sl.cooldown<=0){for(let i=0;i<4;i++)this.particles.push(new Particle(cx,cy,'#ff6600'));}
+          sl.cooldown=PINBALL.sCooldown;sl.flash=PINBALL.sFlash;
         }
-        // Interior fallback
-        if(!hit&&pointInPolygon(ball.x,ball.y,a)){
-          let bestD=Infinity,bestI=0;
-          for(let i=0;i<a.length;i++){
-            const p1=a[i],p2=a[(i+1)%a.length];
-            const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.hypot(dx,dy);
-            if(len<.001)continue;
-            const nx=dx/len,ny=dy/len;
-            const t=Math.max(0,Math.min(1,((ball.x-p1.x)*nx+(ball.y-p1.y)*ny)/len));
-            const cx=p1.x+nx*t*len,cy=p1.y+ny*t*len;
-            const d=Math.hypot(ball.x-cx,ball.y-cy);
-            if(d<bestD){bestD=d;bestI=i;}
-          }
-          const p1=a[bestI],p2=a[(bestI+1)%a.length];
-          const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.hypot(dx,dy);
-          if(len>.001){
-            const nx=dx/len,ny=dy/len;
-            ball.x+=nx*br;ball.y+=ny*br;
-            const dot=ball.dx*nx+ball.dy*ny;if(dot<0){ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;}
-            hit=true;
-          }
-        }
-        if(hit){
-          if(poly.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound(poly.id&&poly.id.startsWith('sling')?'sling':'rail');
-          poly.cooldown=PINBALL.sCooldown;poly.flash=PINBALL.sFlash;
-        }
+      }
+      // Rails
+      for(const r of L.rails){
+        const dx=r.x2-r.x1,dy=r.y2-r.y1,len=Math.hypot(dx,dy);
+        if(len<.001)continue;
+        const nx=dx/len,ny=dy/len;
+        const t=Math.max(0,Math.min(1,((ball.x-r.x1)*nx+(ball.y-r.y1)*ny)/len));
+        const cx=r.x1+nx*t*len,cy=r.y1+ny*t*len;
+        const dist=Math.hypot(ball.x-cx,ball.y-cy),thick=5;
+        if(dist>=br+thick)continue;
+        const nnx=(ball.x-cx)/Math.max(.001,dist),nny=(ball.y-cy)/Math.max(.001,dist);
+        ball.x+=nnx*(br+thick-dist);ball.y+=nny*(br+thick-dist);
+        const dot=ball.dx*nnx+ball.dy*nny;if(dot>=0)continue;
+        ball.dx-=2*dot*nnx;ball.dy-=2*dot*nny;
+        if(Math.abs(dot)>.5&&settings.soundEnabled)this.sound.playPinballSound('rail');
       }
       // Spinners
       for(const sp of L.spinners){
-        const hl=sp.len/2;
+        const hl=(sp.len||PINBALL.spinnerLen)/2;
         const ex1=sp.x+Math.cos(sp.angle)*hl,ey1=sp.y+Math.sin(sp.angle)*hl;
         const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;
         const dx=ex2-ex1,dy=ey2-ey1,len=Math.hypot(dx,dy);
@@ -2203,22 +2203,23 @@ class PongGame {
         if(dist>=br+4)continue;
         const nnx=(ball.x-cx)/Math.max(.001,dist),nny=(ball.y-cy)/Math.max(.001,dist);
         ball.x+=nnx*(br+4-dist);ball.y+=nny*(br+4-dist);
-        const dot=(ball.dx-sp.av*ny*hl)*nnx+(ball.dy+sp.av*nx*hl)*nny;
-        if(dot>=0)continue;
+        const dot=ball.dx*nnx+ball.dy*nny;if(dot>=0)continue;
         ball.dx-=2*dot*nnx;ball.dy-=2*dot*nny;
-        sp.av+=dot*PINBALL.spinnerTransfer/hl;
+        sp.av+=dot*PINBALL.spinnerTransfer/(hl);
         if(settings.soundEnabled)this.sound.playPinballSound('spin');
       }
-      // Walls + goals
+      // Top/bottom wall bounce
       if(ball.y-br<=0){ball.y=br;ball.dy=Math.abs(ball.dy);}
       if(ball.y+br>=CONFIG.canvasHeight){ball.y=CONFIG.canvasHeight-br;ball.dy=-Math.abs(ball.dy);}
+      // Goal check
       if(ball.x+br<0){this.paddleRight.score++;this.serveDirection=-1;this.transition('goal');return;}
       if(ball.x-br>CONFIG.canvasWidth){this.paddleLeft.score++;this.serveDirection=1;this.transition('goal');return;}
     }
     // Tick cooldowns
-    for(const c of L.circles){if(c.cooldown>0)c.cooldown--;if(c.flash>0)c.flash--;}
-    for(const seg of L.segments){if(seg.cooldown>0)seg.cooldown--;}
-    for(const poly of L.polygons){if(poly.cooldown>0)poly.cooldown--;if(poly.flash>0)poly.flash--;}
+    for(const b of L.bumpers){if(b.cooldown>0)b.cooldown--;if(b.flash>0)b.flash--;}
+    for(const s of L.slingshots){if(s.cooldown>0)s.cooldown--;if(s.flash>0)s.flash--;}
+    for(const p of L.posts){if(p.cooldown>0)p.cooldown--;if(p.flash>0)p.flash--;}
+    for(const k of L.kickers){if(k.cooldown>0)k.cooldown--;if(k.flash>0)k.flash--;}
     ball.speed=Math.hypot(ball.dx,ball.dy);
   }
   _hitBallPaddles(ball){
@@ -2227,47 +2228,82 @@ class PongGame {
     if(ball.dx>0&&ball.x+bw>=pR.x&&ball.x+bw<=pR.x+pR.width&&ball.y+bw>=pR.y&&ball.y-bw<=pR.y+pR.height){this._hitBall(ball,pR,-1);ball.lastTouchedBy='right';}
   }
   _drawPinballArena(ctx,w,h,theme){
-    const L=this.pinballLayout;if(!L)return;
+    const L=this.pinballLayout;
+    // Dark playfield
     ctx.fillStyle='#101526';ctx.fillRect(0,0,w,h);
+    // Frame
     ctx.strokeStyle='#3a3f4d';ctx.lineWidth=PINBALL.frameThickness;ctx.strokeRect(7,7,w-14,h-14);
     ctx.strokeStyle='#8992a8';ctx.lineWidth=2;ctx.strokeRect(7,7,w-14,h-14);
-    // Center lane line
-    ctx.strokeStyle=theme.accent;ctx.globalAlpha=.15;ctx.lineWidth=1;ctx.setLineDash([4,8]);
-    ctx.beginPath();ctx.moveTo(w/2,20);ctx.lineTo(w/2,h-20);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
-    // Segments (rails)
+    // Symmetrical lane markings
+    ctx.strokeStyle=theme.accent;ctx.globalAlpha=.15;ctx.lineWidth=1;
+    ctx.setLineDash([4,8]);ctx.beginPath();ctx.moveTo(w/2,20);ctx.lineTo(w/2,h-20);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+    // Bumpers
+    for(const b of L.bumpers){
+      const glow=b.flash>0?1+b.flash/PINBALL.bFlash*.5:1;
+      ctx.fillStyle='#1a1a2e';ctx.beginPath();ctx.arc(b.x,b.y,b.r+2,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=b.type==='large'?'#c0392b':'#2980b9';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=2*glow;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
+      if(b.flash>0){ctx.fillStyle='rgba(255,255,255,'+(b.flash/PINBALL.bFlash*.4)+')';ctx.beginPath();ctx.arc(b.x,b.y,b.r+4,0,Math.PI*2);ctx.fill();}
+      // 3 dots around
+      for(let i=0;i<3;i++){const a=Math.PI*2/3*i;ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(b.x+Math.cos(a)*(b.r+6),b.y+Math.sin(a)*(b.r+6),2,0,Math.PI*2);ctx.fill();}
+    }
+    // Posts
+    for(const p of L.posts){
+      ctx.fillStyle='#333';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.stroke();
+    }
+    // Slingshots
+    for(const sl of L.slingshots){
+      const glow=sl.flash>0?1+sl.flash/PINBALL.sFlash*.3:1;
+      ctx.fillStyle='#1a1a2e';ctx.strokeStyle='#c0392b';ctx.lineWidth=3*glow;ctx.beginPath();
+      ctx.moveTo(sl.a[0].x,sl.a[0].y);for(let i=1;i<3;i++)ctx.lineTo(sl.a[i].x,sl.a[i].y);ctx.closePath();ctx.fill();ctx.stroke();
+      if(sl.flash>0){ctx.strokeStyle='rgba(255,150,0,'+(sl.flash/PINBALL.sFlash*.6)+')';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(sl.a[0].x,sl.a[0].y);for(let i=1;i<3;i++)ctx.lineTo(sl.a[i].x,sl.a[i].y);ctx.closePath();ctx.stroke();}
+    }
+    // Guide rails
     ctx.strokeStyle='#8992a8';ctx.lineWidth=5;ctx.lineCap='round';
-    for(const seg of L.segments){ctx.beginPath();ctx.moveTo(seg.x1,seg.y1);ctx.lineTo(seg.x2,seg.y2);ctx.stroke();}
-    // Polygons (slingshots + diamonds)
-    for(const poly of L.polygons){
-      const isDia=poly.id&&poly.id.startsWith('diamond');
-      const glow=poly.flash>0?1+poly.flash/PINBALL.sFlash*.3:1;
-      ctx.fillStyle=isDia?'#1a1a2e':'#1a1a2e';
-      ctx.strokeStyle=isDia?'#c0392b':'#c0392b';ctx.lineWidth=(isDia?3:3)*glow;
-      ctx.beginPath();ctx.moveTo(poly.a[0].x,poly.a[0].y);
-      for(let i=1;i<poly.a.length;i++)ctx.lineTo(poly.a[i].x,poly.a[i].y);
-      ctx.closePath();ctx.fill();ctx.stroke();
-      if(poly.flash>0&&!isDia){ctx.strokeStyle='rgba(255,150,0,'+(poly.flash/PINBALL.sFlash*.6)+')';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(poly.a[0].x,poly.a[0].y);for(let i=1;i<poly.a.length;i++)ctx.lineTo(poly.a[i].x,poly.a[i].y);ctx.closePath();ctx.stroke();}
-    }
-    // Circles (bumpers, kickers, posts)
-    for(const c of L.circles){
-      const glow=c.flash>0?1+c.flash/(c.type==='kicker'?9:PINBALL.bFlash)*.5:1;
-      ctx.fillStyle='#1a1a2e';ctx.beginPath();ctx.arc(c.x,c.y,c.r+2,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle=c.type==='large'?'#c0392b':c.type==='medium'?'#2980b9':c.type==='kicker'?'#8844cc':'#333';
-      ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=theme.accent;ctx.lineWidth=2*glow;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.stroke();
-      if(c.flash>0){ctx.fillStyle='rgba(255,255,255,'+(c.flash/(c.type==='kicker'?9:PINBALL.bFlash)*.4)+')';ctx.beginPath();ctx.arc(c.x,c.y,c.r+4,0,Math.PI*2);ctx.fill();}
-    }
+    for(const r of L.rails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
+    ctx.strokeStyle='#3a3f4d';ctx.lineWidth=7;ctx.lineCap='round';
+    for(const r of L.rails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
     // Spinners
     for(const sp of L.spinners){
-      const hl=sp.len/2;
+      const hl=(sp.len||PINBALL.spinnerLen)/2;
       const ex1=sp.x+Math.cos(sp.angle)*hl,ey1=sp.y+Math.sin(sp.angle)*hl;
-      const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;
+      // Axle
       ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
+      // Bar
       ctx.strokeStyle='#8992a8';ctx.lineWidth=PINBALL.spinnerW;ctx.lineCap='round';
-      ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
-      ctx.strokeStyle=theme.accent;ctx.lineWidth=PINBALL.spinnerW-2;
-      ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(ex1,ey1);const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;ctx.lineTo(ex2,ey2);ctx.stroke();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=PINBALL.spinnerW-2;ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
     }
+    // Kickers
+    if(L.kickers){for(const k of L.kickers){
+      const g=k.flash>0?1+k.flash/9*.4:1;
+      ctx.fillStyle='#2a1040';ctx.beginPath();ctx.arc(k.x,k.y,k.r+3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#8844cc';ctx.beginPath();ctx.arc(k.x,k.y,k.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=2*g;ctx.beginPath();ctx.arc(k.x,k.y,k.r,0,Math.PI*2);ctx.stroke();
+    }}
+    // Inner rails
+    if(L.innerRails){ctx.strokeStyle='#8992a8';ctx.lineWidth=4;ctx.lineCap='round';
+      for(const r of L.innerRails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
+    }
+    // Diamonds
+    if(L.diamonds){for(const d of L.diamonds){
+      ctx.fillStyle='#1a1a2e';ctx.strokeStyle='#c0392b';ctx.lineWidth=3;ctx.beginPath();
+      ctx.moveTo(d.a[0].x,d.a[0].y);for(let i=1;i<d.a.length;i++)ctx.lineTo(d.a[i].x,d.a[i].y);ctx.closePath();ctx.fill();ctx.stroke();
+    }}
+    // Gates
+    if(L.gates){for(const g of L.gates){
+      const hlg=g.len/2,ex1=g.x+Math.cos(g.angle)*hlg,ey1=g.y+Math.sin(g.angle)*hlg;
+      const ex2=g.x-Math.cos(g.angle)*hlg,ey2=g.y-Math.sin(g.angle)*hlg;
+      ctx.strokeStyle='#8992a8';ctx.lineWidth=5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
+      ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(g.x,g.y,3,0,Math.PI*2);ctx.fill();
+    }}
+    // Lane markers
+    if(L.lanes){for(const l of L.lanes){
+      ctx.strokeStyle=theme.accent;ctx.globalAlpha=.2;ctx.lineWidth=2;ctx.setLineDash([3,6]);ctx.beginPath();
+      ctx.moveTo(l.pts[0].x,l.pts[0].y);for(let i=1;i<l.pts.length;i++)ctx.lineTo(l.pts[i].x,l.pts[i].y);ctx.stroke();
+      ctx.setLineDash([]);ctx.globalAlpha=1;
+    }}
   }
 
   _ballCollision(a,b){
@@ -2550,7 +2586,7 @@ class MenuController {
   }
   pauseGame(){this.game.paused=true;this.pauseOverlay.classList.remove('hidden');}
   resumeGame(){this.game.paused=false;this.pauseOverlay.classList.add('hidden');}
-  backToMenu(){this.game.paused=false;CONFIG.canvasWidth=CONFIG.NORMAL_W;CONFIG.canvasHeight=CONFIG.NORMAL_H;this.game._applyArenaDimensions();this.showMainMenu();}
+  backToMenu(){this.game.paused=false;this.showMainMenu();}
 
   _buildThemePresets(){
     const c=document.getElementById('themePresets');c.innerHTML='';
@@ -2597,13 +2633,10 @@ class MenuController {
   }
   _onAction(a){
     switch(a){
-      case'play':
-        if(settings.gameVariant==='pinball'){CONFIG.canvasWidth=CONFIG.PINBALL_W;CONFIG.canvasHeight=CONFIG.PINBALL_H;}
-        else{CONFIG.canvasWidth=CONFIG.NORMAL_W;CONFIG.canvasHeight=CONFIG.NORMAL_H;}
-        this.game._applyArenaDimensions();this.startGame();break;
+      case'play':this.game._applyArenaDimensions();this.startGame();break;
       case'toggle-gamemode':
         settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'frenzy':settings.gameVariant==='frenzy'?'pool':settings.gameVariant==='pool'?'pinball':'classic';
-        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':settings.gameVariant==='pool'?'POOL':settings.gameVariant==='pinball'?'PINBALL':'POWER UPS';break;
+        this.game._applyArenaDimensions();document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':settings.gameVariant==='pool'?'POOL':settings.gameVariant==='pinball'?'PINBALL':'POWER UPS';break;
       case'cycle-mode':{
         if(settings.gameMode==='pvp'){settings.gameMode='ai';settings.difficulty='easy';}
         else if(settings.difficulty==='easy')settings.difficulty='medium';

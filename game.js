@@ -24,6 +24,7 @@ const CONFIG = {
 
 /* ---- pinball ---- */
 const PB={maxSpeed:CONFIG.ballSpeedMax,bRest:1.08,bBoost:.2,bFlash:12,bCool:7,sRest:1.06,sImp:.2};
+const STAGE={normal:{w:800,h:500},pinball:{w:1200,h:500}};
 
 /* ---- power-up types ---- */
 const POWERUP_TYPES = [
@@ -1737,7 +1738,7 @@ class PongGame {
       this.paddleRight.y=Math.max(minY,Math.min(maxY,this.paddleRight.y));
     }else{
       this.paddleLeft.x=CONFIG.paddleMargin-settings.paddleWidth/2;
-      this.paddleRight.x=CONFIG.canvasWidth-CONFIG.paddleMargin-settings.paddleWidth/2;
+      this.paddleRight.x=this.canvas.width-CONFIG.paddleMargin-settings.paddleWidth/2;
     }
     this.ball.size=settings.ballSize;
     this.paddleLeft.reset(CONFIG.canvasHeight);
@@ -2030,7 +2031,11 @@ class PongGame {
   _poolResetClacks(){this.poolClackQueue=[];}
 
   /* ---- PINBALL ---- */
-  _ensurePinballLayout(){if(!this.pinballLayout)this.pinballLayout=createPinballLayout(CONFIG.canvasWidth,CONFIG.canvasHeight);}
+  _ensurePinballLayout(){
+    const aw=this.canvas.width,ah=this.canvas.height;
+    if(!this.pinballLayout||this.pinballLayout._aw!==aw)this.pinballLayout=createPinballLayout(aw,ah);
+    if(this.pinballLayout)this.pinballLayout._aw=aw;
+  }
   _resetPinballState(){const L=this.pinballLayout;if(!L)return;for(const b of L.bumpers){b.c=0;b.f=0;}for(const p of L.posts){p.c=0;p.f=0;}}
   _drawPinballArena(ctx,w,h,theme){
     const accent=settings.themeOverrideAccent||theme.text,L=this.pinballLayout;if(!L)return;
@@ -2070,9 +2075,9 @@ class PongGame {
         if(hit){if(p.c<=0&&settings.soundEnabled)this.sound.playPinballSound('post');p.c=PB.bCool;p.f=8;}
       }
       if(ball.y-br<=0){ball.y=br;ball.dy=Math.abs(ball.dy);}
-      if(ball.y+br>=CONFIG.canvasHeight){ball.y=CONFIG.canvasHeight-br;ball.dy=-Math.abs(ball.dy);}
+      if(ball.y+br>=this.canvas.height){ball.y=this.canvas.height-br;ball.dy=-Math.abs(ball.dy);}
       if(ball.x+br<0){this.paddleRight.score++;this.transition('goal');return;}
-      if(ball.x-br>CONFIG.canvasWidth){this.paddleLeft.score++;this.transition('goal');return;}
+      if(ball.x-br>this.canvas.width){this.paddleLeft.score++;this.transition('goal');return;}
     }
     for(const b of L.bumpers){if(b.c>0)b.c--;if(b.f>0)b.f--;}
     for(const p of L.posts){if(p.c>0)p.c--;if(p.f>0)p.f--;}
@@ -2205,7 +2210,7 @@ class PongGame {
   /* ---- drawing ---- */
   _draw(ts){
     if(!this.active)return;
-    const ctx=this.ctx,w=CONFIG.canvasWidth,h=CONFIG.canvasHeight,theme=this.getTheme();
+    const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height,theme=this.getTheme();
     const alpha=(this.state==='playing'&&!this.paused)?Math.min(this.accumulator/this.tickRate,1):1;
     ctx.fillStyle=settings.themeOverrideBg||theme.bg;ctx.fillRect(0,0,w,h);
 
@@ -2342,8 +2347,14 @@ class MenuController {
     this._buildThemePresets();this._buildPaddleStyleButtons();this._buildBallSkinButtons();this._buildThemeDots();
     this._bindClicks();this._bindSliders();this._bindColorPickers();this._bindBallEditor();this._syncUI();
   }
+  _applyStageSize(w,h){
+    const r=document.documentElement;
+    r.style.setProperty('--stage-w',w+'px');r.style.setProperty('--stage-h',h+'px');r.style.setProperty('--stage-r',w/h);
+    this.game.canvas.width=w;this.game.canvas.height=h;this.game.pinballLayout=null;
+  }
 
   showMainMenu(){
+    this._applyStageSize(STAGE.normal.w,STAGE.normal.h);
     this.game.state='idle';this.game.active=false;this.game.paused=false;
     this.menuOverlay.classList.remove('hidden');this.menuMain.classList.remove('hidden');
     [this.menuSkins,this.menuTheme,this.menuPaddle,this.menuBall,this.menuBallEditor,this.menuBallPaint].forEach(m=>m.classList.add('hidden'));
@@ -2351,6 +2362,8 @@ class MenuController {
     this.themeSwitcher.classList.add('hidden');this.controlsBar.classList.remove('hidden');this._syncUI();
   }
   startGame(){
+    const isPin=settings.gameVariant==='pinball';
+    this._applyStageSize(isPin?STAGE.pinball.w:STAGE.normal.w,isPin?STAGE.pinball.h:STAGE.normal.h);
     this.menuOverlay.classList.add('hidden');this.pauseOverlay.classList.add('hidden');
     this.scoreboard.classList.remove('hidden');this.themeSwitcher.classList.remove('hidden');
     this.controlsBar.classList.remove('hidden');

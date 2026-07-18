@@ -13,8 +13,6 @@
 const CONFIG = {
   canvasWidth: 800,
   canvasHeight: 500,
-  /* arena dimensions per mode */
-  NORMAL_W:800,NORMAL_H:500,PINBALL_W:1200,PINBALL_H:500,
   paddleSpeed: 6,
   paddleMargin: 24,
   ballSpeedInitial: 5,
@@ -243,58 +241,36 @@ const PINBALL = {
 function mirrorX(x){return CONFIG.canvasWidth-x;}
 function createPinballLayout(){
   const w=CONFIG.canvasWidth,h=CONFIG.canvasHeight;
-  // --- Large bumpers (3 per side, 6 total) ---
-  const llb=[{x:300,y:125,r:25,type:'large'},{x:350,y:250,r:27,type:'large'},{x:300,y:375,r:25,type:'large'}];
-  const rlb=llb.map(b=>({...b,x:mirrorX(b.x)}));
-  // --- Medium bumpers (2 per side, 4 total) ---
-  const lmb=[{x:455,y:170,r:18,type:'medium'},{x:455,y:330,r:18,type:'medium'}];
-  const rmb=lmb.map(b=>({...b,x:mirrorX(b.x)}));
-  // --- Kickers (2 per side, 4 total) ---
-  const lk=[{x:560,y:150,r:13,type:'kicker'},{x:560,y:350,r:13,type:'kicker'}];
-  const rk=lk.map(b=>({...b,x:mirrorX(b.x)}));
-  // --- Posts (2 per side, 4 total) ---
-  const lp=[{x:205,y:210,r:9,type:'post'},{x:205,y:290,r:9,type:'post'}];
-  const rp=lp.map(b=>({...b,x:mirrorX(b.x)}));
-  // --- Slingshots (2 per side, 4 total) ---
-  const lsu={a:[{x:155,y:105},{x:235,y:150},{x:170,y:215}]};
-  const lsl={a:[{x:155,y:395},{x:235,y:350},{x:170,y:285}]};
+  // Left-side large bumpers
+  const llb={x:w*.3125,y:h*.29,r:PINBALL.largeR,type:'large'};
+  const llb2={x:w*.3125,y:h*.71,r:PINBALL.largeR,type:'large'};
+  // Right mirror
+  const rlb={x:mirrorX(llb.x),y:llb.y,r:PINBALL.largeR,type:'large'};
+  const rlb2={x:mirrorX(llb2.x),y:llb2.y,r:PINBALL.largeR,type:'large'};
+  // Medium inner bumpers
+  const lmb={x:w*.3875,y:h*.50,r:PINBALL.mediumR,type:'medium'};
+  const rmb={x:mirrorX(lmb.x),y:lmb.y,r:PINBALL.mediumR,type:'medium'};
+  // Posts
+  const lp={x:w*.145,y:h*.50,r:PINBALL.postR,type:'post'};
+  const rp={x:mirrorX(lp.x),y:lp.y,r:PINBALL.postR,type:'post'};
+  // Spinners
+  const ls={x:w*.4625,y:h*.50};
+  const rs={x:w*.5375,y:h*.50};
+  // Left slingshots (upper/lower mirrored)
+  const lsu={a:[{x:135,y:120},{x:200,y:165},{x:145,y:210}]};
+  const lsl={a:[{x:135,y:380},{x:200,y:335},{x:145,y:290}]};
   const rsu={a:lsu.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
   const rsl={a:lsl.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
-  // --- Outer guide rails (3 per side, 6 total) ---
-  const lgr=[{x1:105,y1:55,x2:225,y2:95},{x1:145,y1:235,x2:190,y2:250},{x1:105,y1:445,x2:225,y2:405}];
+  // Guide rails (capsule segments)
+  const lgr=[{x1:82,y1:70,x2:175,y2:112},{x1:82,y1:430,x2:175,y2:388}];
   const rgr=lgr.map(r=>({x1:mirrorX(r.x1),y1:r.y1,x2:mirrorX(r.x2),y2:r.y2}));
-  // --- Inner rebound rails (2 per side, 4 total) ---
-  const lir=[{x1:390,y1:90,x2:495,y2:125},{x1:390,y1:410,x2:495,y2:375}];
-  const rir=lir.map(r=>({x1:mirrorX(r.x1),y1:r.y1,x2:mirrorX(r.x2),y2:r.y2}));
-  // --- Spinners: inner pair (2) + outer pair (2) = 4 total ---
-  const spinners=[
-    {x:565,y:250,len:42,angle:Math.PI/2,av:PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
-    {x:635,y:250,len:42,angle:Math.PI/2,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng},
-    {x:420,y:250,len:48,angle:Math.PI/4,av:PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
-    {x:780,y:250,len:48,angle:-Math.PI/4,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng},
-  ];
-  // --- Central diamonds (2) ---
-  const ld={a:[{x:535,y:218},{x:560,y:250},{x:535,y:282},{x:510,y:250}]};
-  const rd={a:ld.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
-  // --- Lane gates (2 per side, 4 total) ---
-  const lgates=[{x:265,y:80,len:30,angle:.35,restAngle:.35,av:0},
-               {x:265,y:420,len:30,angle:-.35,restAngle:-.35,av:0}];
-  const rgates=lgates.map(g=>({...g,x:mirrorX(g.x),restAngle:-g.restAngle,angle:-g.angle}));
-  // --- Rollover lane indicators (decorative, per side) ---
-  const lanes=[{pts:[{x:230,y:70},{x:280,y:82},{x:310,y:105}]},
-              {pts:[{x:230,y:430},{x:280,y:418},{x:310,y:395}]}];
-  const rlanes=lanes.map(l=>({pts:l.pts.map(p=>({x:mirrorX(p.x),y:p.y}))}));
   return {
-    bumpers:[...llb,...rlb,...lmb,...rmb],
-    kickers:[...lk,...rk],
-    posts:[...lp,...rp],
+    bumpers:[llb,llb2,rlb,rlb2,lmb,rmb],
+    posts:[lp,rp],
     slingshots:[lsu,lsl,rsu,rsl],
     rails:[...lgr,...rgr],
-    innerRails:[...lir,...rir],
-    spinners,
-    diamonds:[ld,rd],
-    gates:[...lgates,...rgates],
-    lanes:[...lanes,...rlanes],
+    spinners:[{...ls,angle:Math.PI/2,av: PINBALL.spinnerAng,baseAv:PINBALL.spinnerAng},
+              {...rs,angle:Math.PI/2,av:-PINBALL.spinnerAng,baseAv:-PINBALL.spinnerAng}]
   };
 }
 
@@ -1754,20 +1730,7 @@ class PongGame {
     this.ai=settings.gameMode==='ai'?new AIOpponent(settings.difficulty):null;
     this._syncDimensions();this._resetGame();this.transition('serving');
   }
-  restart(){this.paused=false;this._applyArenaDimensions();this._resetGame();this.transition('serving');}
-  _applyArenaDimensions(){
-    const isPin=settings.gameVariant==='pinball';
-    const w=isPin?CONFIG.PINBALL_W:CONFIG.NORMAL_W;
-    const h=isPin?CONFIG.PINBALL_H:CONFIG.NORMAL_H;
-    if(CONFIG.canvasWidth===w&&CONFIG.canvasHeight===h)return;
-    CONFIG.canvasWidth=w;CONFIG.canvasHeight=h;
-    this.canvas.width=w;this.canvas.height=h;
-    this.ball.prevX=this.ball.x=w/2;this.ball.prevY=this.ball.y=h/2;this.ball.dx=this.ball.dy=0;
-    this.paddleLeft.x=CONFIG.paddleMargin;this.paddleLeft.y=h/2-45;
-    this.paddleRight.x=w-CONFIG.paddleMargin-settings.paddleWidth;
-    this.paddleRight.y=h/2-45;
-    this.pinballLayout=isPin?createPinballLayout():null;
-  }
+  restart(){this.paused=false;this._resetGame();this.transition('serving');}
   _applySettings(){this._applyThemeAndColors();if(settings.gameVariant!=='frenzy'){if(/^\d+ball$/.test(settings.ballSkin)&&settings.ballSkin!=='8ball')settings.ballSkin='8ball';this.ball.skin=settings.ballSkin;}applyThemeCSS(settings.theme);}
   _applyThemeAndColors(){
     const t=THEMES[settings.theme];
@@ -2092,8 +2055,9 @@ class PongGame {
     for(const b of this.pinballLayout.bumpers){b.cooldown=0;b.flash=0;}
     for(const s of this.pinballLayout.slingshots){s.cooldown=0;s.flash=0;}
     for(const p of this.pinballLayout.posts){p.cooldown=0;p.flash=0;}
-    if(this.pinballLayout.kickers)for(const k of this.pinballLayout.kickers){k.cooldown=0;k.flash=0;}
-    for(const sp of this.pinballLayout.spinners){sp.av=sp.baseAv;}
+    const sps=this.pinballLayout.spinners;
+    sps[0].angle=Math.PI/2;sps[0].av=PINBALL.spinnerAng;sps[0].baseAv=PINBALL.spinnerAng;
+    sps[1].angle=Math.PI/2;sps[1].av=-PINBALL.spinnerAng;sps[1].baseAv=-PINBALL.spinnerAng;
   }
   _updatePinballMode(){
     this._ensurePinballLayout();
@@ -2128,20 +2092,6 @@ class PongGame {
         b.cooldown=b.type==='large'?PINBALL.bCooldown:PINBALL.bCooldown;
         b.flash=PINBALL.bFlash;
       }
-      // Kickers (if present)
-      if(L.kickers){for(const k of L.kickers){
-        const dist=Math.hypot(ball.x-k.x,ball.y-k.y),min=br+k.r;
-        if(dist>=min||dist<.001)continue;
-        const nx=(ball.x-k.x)/dist,ny=(ball.y-k.y)/dist;
-        ball.x=k.x+nx*min;ball.y=k.y+ny*min;
-        const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)continue;
-        ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
-        const ns=Math.min(PINBALL.maxSpeed,spd*1.08+.2);
-        const nm=Math.hypot(ball.dx,ball.dy);if(nm>.001){ball.dx=ball.dx/nm*ns;ball.dy=ball.dy/nm*ns;}
-        ball.speed=ns;
-        if(k.cooldown<=0&&settings.soundEnabled)this.sound.playPinballSound('bumper');
-        k.cooldown=PINBALL.bCooldown;k.flash=9;
-      }}
       // Posts
       for(const p of L.posts){
         const dist=Math.hypot(ball.x-p.x,ball.y-p.y),min=br+p.r;
@@ -2191,7 +2141,7 @@ class PongGame {
       }
       // Spinners
       for(const sp of L.spinners){
-        const hl=(sp.len||PINBALL.spinnerLen)/2;
+        const hl=PINBALL.spinnerLen/2;
         const ex1=sp.x+Math.cos(sp.angle)*hl,ey1=sp.y+Math.sin(sp.angle)*hl;
         const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;
         const dx=ex2-ex1,dy=ey2-ey1,len=Math.hypot(dx,dy);
@@ -2219,7 +2169,6 @@ class PongGame {
     for(const b of L.bumpers){if(b.cooldown>0)b.cooldown--;if(b.flash>0)b.flash--;}
     for(const s of L.slingshots){if(s.cooldown>0)s.cooldown--;if(s.flash>0)s.flash--;}
     for(const p of L.posts){if(p.cooldown>0)p.cooldown--;if(p.flash>0)p.flash--;}
-    for(const k of L.kickers){if(k.cooldown>0)k.cooldown--;if(k.flash>0)k.flash--;}
     ball.speed=Math.hypot(ball.dx,ball.dy);
   }
   _hitBallPaddles(ball){
@@ -2266,7 +2215,7 @@ class PongGame {
     for(const r of L.rails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
     // Spinners
     for(const sp of L.spinners){
-      const hl=(sp.len||PINBALL.spinnerLen)/2;
+      const hl=PINBALL.spinnerLen/2;
       const ex1=sp.x+Math.cos(sp.angle)*hl,ey1=sp.y+Math.sin(sp.angle)*hl;
       // Axle
       ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
@@ -2275,35 +2224,6 @@ class PongGame {
       ctx.beginPath();ctx.moveTo(ex1,ey1);const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;ctx.lineTo(ex2,ey2);ctx.stroke();
       ctx.strokeStyle=theme.accent;ctx.lineWidth=PINBALL.spinnerW-2;ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
     }
-    // Kickers
-    if(L.kickers){for(const k of L.kickers){
-      const g=k.flash>0?1+k.flash/9*.4:1;
-      ctx.fillStyle='#2a1040';ctx.beginPath();ctx.arc(k.x,k.y,k.r+3,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#8844cc';ctx.beginPath();ctx.arc(k.x,k.y,k.r,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=theme.accent;ctx.lineWidth=2*g;ctx.beginPath();ctx.arc(k.x,k.y,k.r,0,Math.PI*2);ctx.stroke();
-    }}
-    // Inner rails
-    if(L.innerRails){ctx.strokeStyle='#8992a8';ctx.lineWidth=4;ctx.lineCap='round';
-      for(const r of L.innerRails){ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);ctx.stroke();}
-    }
-    // Diamonds
-    if(L.diamonds){for(const d of L.diamonds){
-      ctx.fillStyle='#1a1a2e';ctx.strokeStyle='#c0392b';ctx.lineWidth=3;ctx.beginPath();
-      ctx.moveTo(d.a[0].x,d.a[0].y);for(let i=1;i<d.a.length;i++)ctx.lineTo(d.a[i].x,d.a[i].y);ctx.closePath();ctx.fill();ctx.stroke();
-    }}
-    // Gates
-    if(L.gates){for(const g of L.gates){
-      const hlg=g.len/2,ex1=g.x+Math.cos(g.angle)*hlg,ey1=g.y+Math.sin(g.angle)*hlg;
-      const ex2=g.x-Math.cos(g.angle)*hlg,ey2=g.y-Math.sin(g.angle)*hlg;
-      ctx.strokeStyle='#8992a8';ctx.lineWidth=5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
-      ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(g.x,g.y,3,0,Math.PI*2);ctx.fill();
-    }}
-    // Lane markers
-    if(L.lanes){for(const l of L.lanes){
-      ctx.strokeStyle=theme.accent;ctx.globalAlpha=.2;ctx.lineWidth=2;ctx.setLineDash([3,6]);ctx.beginPath();
-      ctx.moveTo(l.pts[0].x,l.pts[0].y);for(let i=1;i<l.pts.length;i++)ctx.lineTo(l.pts[i].x,l.pts[i].y);ctx.stroke();
-      ctx.setLineDash([]);ctx.globalAlpha=1;
-    }}
   }
 
   _ballCollision(a,b){
@@ -2633,10 +2553,10 @@ class MenuController {
   }
   _onAction(a){
     switch(a){
-      case'play':this.game._applyArenaDimensions();this.startGame();break;
+      case'play':this.startGame();break;
       case'toggle-gamemode':
         settings.gameVariant=settings.gameVariant==='classic'?'powerups':settings.gameVariant==='powerups'?'frenzy':settings.gameVariant==='frenzy'?'pool':settings.gameVariant==='pool'?'pinball':'classic';
-        this.game._applyArenaDimensions();document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':settings.gameVariant==='pool'?'POOL':settings.gameVariant==='pinball'?'PINBALL':'POWER UPS';break;
+        document.getElementById('gameModeLabel').textContent=settings.gameVariant==='classic'?'CLASSIC':settings.gameVariant==='frenzy'?'FRENZY':settings.gameVariant==='pool'?'POOL':settings.gameVariant==='pinball'?'PINBALL':'POWER UPS';break;
       case'cycle-mode':{
         if(settings.gameMode==='pvp'){settings.gameMode='ai';settings.difficulty='easy';}
         else if(settings.difficulty==='easy')settings.difficulty='medium';

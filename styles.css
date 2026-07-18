@@ -5,6 +5,8 @@
 /* ================================================================== */
 
 :root {
+  --arena-w: 800px;
+  --arena-h: 500px;
   --bg: #111;
   --canvas-bg: #000;
   --text: #fff;
@@ -47,7 +49,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  width: 800px;
+  width: min(var(--arena-w, 800px), calc(100vw - 16px));
 }
 
 /* ================================================================== */

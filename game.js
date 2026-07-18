@@ -246,25 +246,25 @@ function createPinballLayout(aw,ah){
   const llb={x:w*.3125,y:h*.29,r:PINBALL.largeR,type:'large'};
   const llb2={x:w*.3125,y:h*.71,r:PINBALL.largeR,type:'large'};
   // Right mirror
-  const rlb={x:M(llb.x),y:llb.y,r:PINBALL.largeR,type:'large'};
-  const rlb2={x:M(llb2.x),y:llb2.y,r:PINBALL.largeR,type:'large'};
+  const rlb={x:mirrorX(llb.x),y:llb.y,r:PINBALL.largeR,type:'large'};
+  const rlb2={x:mirrorX(llb2.x),y:llb2.y,r:PINBALL.largeR,type:'large'};
   // Medium inner bumpers
   const lmb={x:w*.3875,y:h*.50,r:PINBALL.mediumR,type:'medium'};
-  const rmb={x:M(lmb.x),y:lmb.y,r:PINBALL.mediumR,type:'medium'};
+  const rmb={x:mirrorX(lmb.x),y:lmb.y,r:PINBALL.mediumR,type:'medium'};
   // Posts
   const lp={x:w*.145,y:h*.50,r:PINBALL.postR,type:'post'};
-  const rp={x:M(lp.x),y:lp.y,r:PINBALL.postR,type:'post'};
+  const rp={x:mirrorX(lp.x),y:lp.y,r:PINBALL.postR,type:'post'};
   // Spinners
   const ls={x:w*.4625,y:h*.50};
   const rs={x:w*.5375,y:h*.50};
   // Left slingshots (upper/lower mirrored)
   const lsu={a:[{x:135,y:120},{x:200,y:165},{x:145,y:210}]};
   const lsl={a:[{x:135,y:380},{x:200,y:335},{x:145,y:290}]};
-  const rsu={a:lsu.a.map(p=>({x:M(p.x),y:p.y}))};
-  const rsl={a:lsl.a.map(p=>({x:M(p.x),y:p.y}))};
+  const rsu={a:lsu.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
+  const rsl={a:lsl.a.map(p=>({x:mirrorX(p.x),y:p.y}))};
   // Guide rails (capsule segments)
   const lgr=[{x1:82,y1:70,x2:175,y2:112},{x1:82,y1:430,x2:175,y2:388}];
-  const rgr=lgr.map(r=>({x1:M(r.x1),y1:r.y1,x2:M(r.x2),y2:r.y2}));
+  const rgr=lgr.map(r=>({x1:mirrorX(r.x1),y1:r.y1,x2:mirrorX(r.x2),y2:r.y2}));
   return {
     bumpers:[llb,llb2,rlb,rlb2,lmb,rmb],
     posts:[lp,rp],
@@ -1757,7 +1757,7 @@ class PongGame {
       this.paddleRight.y=Math.max(minY,Math.min(maxY,this.paddleRight.y));
     }else{
       this.paddleLeft.x=CONFIG.paddleMargin-settings.paddleWidth/2;
-      this.paddleRight.x=this.canvas.width-CONFIG.paddleMargin-settings.paddleWidth/2;
+      this.paddleRight.x=CONFIG.canvasWidth-CONFIG.paddleMargin-settings.paddleWidth/2;
     }
     this.ball.size=settings.ballSize;
     this.paddleLeft.reset(CONFIG.canvasHeight);
@@ -2179,7 +2179,6 @@ class PongGame {
     if(ball.dx>0&&ball.x+bw>=pR.x&&ball.x+bw<=pR.x+pR.width&&ball.y+bw>=pR.y&&ball.y-bw<=pR.y+pR.height){this._hitBall(ball,pR,-1);ball.lastTouchedBy='right';}
   }
   _drawPinballArena(ctx,w,h,theme){
-    const accent=settings.themeOverrideAccent||theme.text;
     const L=this.pinballLayout;
     // Dark playfield
     ctx.fillStyle='#101526';ctx.fillRect(0,0,w,h);
@@ -2187,22 +2186,22 @@ class PongGame {
     ctx.strokeStyle='#3a3f4d';ctx.lineWidth=PINBALL.frameThickness;ctx.strokeRect(7,7,w-14,h-14);
     ctx.strokeStyle='#8992a8';ctx.lineWidth=2;ctx.strokeRect(7,7,w-14,h-14);
     // Symmetrical lane markings
-    ctx.strokeStyle=accent;ctx.globalAlpha=.15;ctx.lineWidth=1;
+    ctx.strokeStyle=theme.accent;ctx.globalAlpha=.15;ctx.lineWidth=1;
     ctx.setLineDash([4,8]);ctx.beginPath();ctx.moveTo(w/2,20);ctx.lineTo(w/2,h-20);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
     // Bumpers
     for(const b of L.bumpers){
       const glow=b.flash>0?1+b.flash/PINBALL.bFlash*.5:1;
       ctx.fillStyle='#1a1a2e';ctx.beginPath();ctx.arc(b.x,b.y,b.r+2,0,Math.PI*2);ctx.fill();
       ctx.fillStyle=b.type==='large'?'#c0392b':'#2980b9';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=accent;ctx.lineWidth=2*glow;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=2*glow;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
       if(b.flash>0){ctx.fillStyle='rgba(255,255,255,'+(b.flash/PINBALL.bFlash*.4)+')';ctx.beginPath();ctx.arc(b.x,b.y,b.r+4,0,Math.PI*2);ctx.fill();}
       // 3 dots around
-      for(let i=0;i<3;i++){const a=Math.PI*2/3*i;ctx.fillStyle=accent;ctx.beginPath();ctx.arc(b.x+Math.cos(a)*(b.r+6),b.y+Math.sin(a)*(b.r+6),2,0,Math.PI*2);ctx.fill();}
+      for(let i=0;i<3;i++){const a=Math.PI*2/3*i;ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(b.x+Math.cos(a)*(b.r+6),b.y+Math.sin(a)*(b.r+6),2,0,Math.PI*2);ctx.fill();}
     }
     // Posts
     for(const p of L.posts){
       ctx.fillStyle='#333';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.stroke();
     }
     // Slingshots
     for(const sl of L.slingshots){
@@ -2221,11 +2220,11 @@ class PongGame {
       const hl=PINBALL.spinnerLen/2;
       const ex1=sp.x+Math.cos(sp.angle)*hl,ey1=sp.y+Math.sin(sp.angle)*hl;
       // Axle
-      ctx.fillStyle=accent;ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
       // Bar
       ctx.strokeStyle='#8992a8';ctx.lineWidth=PINBALL.spinnerW;ctx.lineCap='round';
       ctx.beginPath();ctx.moveTo(ex1,ey1);const ex2=sp.x-Math.cos(sp.angle)*hl,ey2=sp.y-Math.sin(sp.angle)*hl;ctx.lineTo(ex2,ey2);ctx.stroke();
-      ctx.strokeStyle=accent;ctx.lineWidth=PINBALL.spinnerW-2;ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
+      ctx.strokeStyle=theme.accent;ctx.lineWidth=PINBALL.spinnerW-2;ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
     }
   }
 

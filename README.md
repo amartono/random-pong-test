@@ -35,24 +35,8 @@ First to 11 points, win by 2.
 | **POWER UPS** | Arcade Pong | Same court with random power-up orbs to collect. |
 | **FRENZY** | Multi-ball chaos | 14 balls with random skins bouncing everywhere. |
 | **POOL** | Pong meets billiards | Six-pocket pool table with a full 15-ball rack. |
-| **PINBALL** | Pong meets pinball | Symmetrical pinball arena with bumpers, slingshots, spinners, rails, and posts. |
 
 ---
-
-## Pinball Mode
-
-Normal Pong scoring inside a retro pinball-machine arena. The playfield is exactly horizontally mirrored so both players have equal conditions.
-
-- **4 large pop bumpers** — strong outward rebounds with speed boosts
-- **2 medium inner bumpers** — smaller, center-field redirects
-- **4 triangular slingshots** — inward-facing rubber triangles
-- **4 angled guide rails** — passive corner redirectors
-- **2 rubber posts** — sharp deflection pegs
-- **2 rotating spinners** — animated bars near the center
-- **Substep physics** — no high-speed tunneling through obstacles
-- **Pinball sounds** — distinct boings, snaps, clicks, and ticks per obstacle type
-
-Scoring remains normal Pong: only goals behind the paddle award points.
 
 ## Pool Mode
 

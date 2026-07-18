@@ -231,34 +231,86 @@ const POOL_SOUND = {
   minGain:0.025, maxGain:0.12, pitchMin:0.92, pitchMax:1.08,
 };
 
-/* ---- pinball layout ---- */
-function createPinballLayout(w,h){
-  const M=(x)=>w-x;
-  return {
-    bumpers:[
-      {x:w*.3,y:h*.32,r:24,type:'large',c:0,f:0},{x:w*.3,y:h*.68,r:24,type:'large',c:0,f:0},
-      {x:M(w*.3),y:h*.32,r:24,type:'large',c:0,f:0},{x:M(w*.3),y:h*.68,r:24,type:'large',c:0,f:0},
-      {x:w*.4,y:h*.5,r:18,type:'med',c:0,f:0},{x:M(w*.4),y:h*.5,r:18,type:'med',c:0,f:0},
-    ],
-    posts:[
-      {x:w*.14,y:h*.5,r:9,c:0,f:0},{x:M(w*.14),y:h*.5,r:9,c:0,f:0},
-    ],
-    spinners:[
-      {x:w*.46,y:h*.5,len:40,ang:Math.PI/2,av:.03,bav:.03},
-      {x:M(w*.46),y:h*.5,len:40,ang:Math.PI/2,av:-.03,bav:-.03},
-    ],
-  };
+/* ---- pinball layout: Space Cadet inspired, two mirrored halves ---- */
+function mpx(x,aw){return aw-x;}
+function closestOnSeg(px,py,x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy;if(l2<.001)return{x:x1,y:y1};
+  let t=((px-x1)*dx+(py-y1)*dy)/l2;t=Math.max(0,Math.min(1,t));return{x:x1+t*dx,y:y1+t*dy};
 }
-function resolveCircleCollision(ball,br,cx,cy,cr,rest,boost){
-  const dx=ball.x-cx,dy=ball.y-cy,dist=Math.hypot(dx,dy),min=br+cr;
+function pointInPoly(px,py,p){
+  let inside=false;for(let i=0,j=p.length-1;i<p.length;j=i++){
+    if((p[i].y>py)!==(p[j].y>py)&&px<(p[j].x-p[i].x)*(py-p[i].y)/(p[j].y-p[i].y)+p[i].x)inside=!inside;
+  }return inside;
+}
+function resolveCapsule(ball,br,x1,y1,x2,y2,thick,rest,boost){
+  const cp=closestOnSeg(ball.x,ball.y,x1,y1,x2,y2);
+  const dx=ball.x-cp.x,dy=ball.y-cp.y,dist=Math.hypot(dx,dy),min=br+thick/2;
   if(dist>=min||dist<.001)return false;
-  const nx=dx/dist,ny=dy/dist;
-  ball.x=cx+nx*min;ball.y=cy+ny*min;
+  const nx=dx/dist,ny=dy/dist;ball.x+=nx*(min-dist);ball.y+=ny*(min-dist);
   const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)return true;
   ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
   if(rest){const ns=Math.min(PB.maxSpeed,Math.hypot(ball.dx,ball.dy)*rest+(boost||0));
     const nm=Math.hypot(ball.dx,ball.dy);if(nm>.001){ball.dx=ball.dx/nm*ns;ball.dy=ball.dy/nm*ns;}ball.speed=ns;}
   return true;
+}
+function resolveCircle(ball,br,cx,cy,cr,rest,boost){
+  const dx=ball.x-cx,dy=ball.y-cy,dist=Math.hypot(dx,dy),min=br+cr;
+  if(dist>=min||dist<.001)return false;
+  const nx=dx/dist,ny=dy/dist;ball.x=cx+nx*min;ball.y=cy+ny*min;
+  const dot=ball.dx*nx+ball.dy*ny;if(dot>=0)return true;
+  ball.dx-=2*dot*nx;ball.dy-=2*dot*ny;
+  if(rest){const ns=Math.min(PB.maxSpeed,Math.hypot(ball.dx,ball.dy)*rest+(boost||0));
+    const nm=Math.hypot(ball.dx,ball.dy);if(nm>.001){ball.dx=ball.dx/nm*ns;ball.dy=ball.dy/nm*ns;}ball.speed=ns;}
+  return true;
+}
+function createPinballLayout(aw,ah){
+  const w=aw,h=ah,M=(x)=>w-x;
+  const L={tableBodies:[],cabinet:[],launchLanes:[],rails:[],bumpers:[],kickers:[],gravityWells:[],rArms:[],slingshots:[],targets:[],posts:[],plungers:[],decor:[]};
+  // Tapered table bodies
+  L.tableBodies.push({a:[{x:70,y:25},{x:555,y:78},{x:555,y:422},{x:70,y:475}]});
+  L.tableBodies.push({a:[{x:M(70),y:475},{x:M(555),y:422},{x:M(555),y:78},{x:M(70),y:25}]});
+  // Cabinet segments
+  const cabSegs=[
+    {x1:70,y1:25,x2:555,y2:78},{x1:70,y1:475,x2:555,y2:422},
+    {x1:70,y1:25,x2:70,y2:90},{x1:70,y1:410,x2:70,y2:475}, // drain mouth walls
+  ];
+  for(const s of cabSegs){L.cabinet.push({...s,thick:10});L.cabinet.push({x1:M(s.x2),y1:s.y2,x2:M(s.x1),y2:s.y1,thick:10});}
+  // Launch lanes (curved)
+  const lo=[{x:82,y:462},{x:165,y:462},{x:235,y:442},{x:300,y:405},{x:350,y:355},{x:390,y:295},{x:425,y:230},{x:465,y:170},{x:515,y:125},{x:550,y:115}];
+  const li=[{x:120,y:420},{x:178,y:420},{x:228,y:405},{x:275,y:375},{x:315,y:335},{x:350,y:280},{x:380,y:220},{x:420,y:160},{x:480,y:108},{x:550,y:96}];
+  for(let i=1;i<lo.length;i++)L.launchLanes.push({x1:lo[i-1].x,y1:lo[i-1].y,x2:lo[i].x,y2:lo[i].y,thick:8});
+  for(let i=1;i<li.length;i++)L.launchLanes.push({x1:li[i-1].x,y1:li[i-1].y,x2:li[i].x,y2:li[i].y,thick:8});
+  for(let i=1;i<lo.length;i++)L.launchLanes.push({x1:M(lo[i].x),y1:lo[i].y,x2:M(lo[i-1].x),y2:lo[i-1].y,thick:8});
+  for(let i=1;i<li.length;i++)L.launchLanes.push({x1:M(li[i].x),y1:li[i].y,x2:M(li[i-1].x),y2:li[i-1].y,thick:8});
+  // Attack bumpers (3 per side)
+  L.bumpers.push({x:360,y:160,r:23,type:'large',c:0,f:0},{x:435,y:225,r:23,type:'large',c:0,f:0},{x:360,y:290,r:23,type:'large',c:0,f:0});
+  L.bumpers.push({x:M(360),y:160,r:23,type:'large',c:0,f:0},{x:M(435),y:225,r:23,type:'large',c:0,f:0},{x:M(360),y:290,r:23,type:'large',c:0,f:0});
+  // Kickers
+  L.kickers.push({x:280,y:112,r:15,type:'wormhole',c:0,f:0},{x:510,y:155,r:14,type:'inner',c:0,f:0});
+  L.kickers.push({x:M(280),y:112,r:15,type:'wormhole',c:0,f:0},{x:M(510),y:155,r:14,type:'inner',c:0,f:0});
+  // Gravity wells
+  L.gravityWells.push({x:415,y:355,r:29,c:0,f:0},{x:M(415),y:355,r:29,c:0,f:0});
+  // Rebound arms
+  L.rArms.push({x1:105,y1:155,x2:220,y2:215,thick:12,c:0,f:0},{x1:105,y1:345,x2:220,y2:285,thick:12,c:0,f:0});
+  L.rArms.push({x1:M(220),y1:215,x2:M(105),y2:155,thick:12,c:0,f:0},{x1:M(220),y1:285,x2:M(105),y2:345,thick:12,c:0,f:0});
+  // Slingshots
+  const lsu={a:[{x:220,y:140},{x:305,y:190},{x:242,y:240}],c:0,f:0};
+  const lsl={a:[{x:220,y:360},{x:305,y:310},{x:242,y:260}],c:0,f:0};
+  L.slingshots.push(lsu,lsl,{a:lsu.a.map(p=>({x:M(p.x),y:p.y})),c:0,f:0},{a:lsl.a.map(p=>({x:M(p.x),y:p.y})),c:0,f:0});
+  // Outer rails
+  L.rails.push({x1:78,y1:82,x2:205,y2:125,thick:9,c:0},{x1:78,y1:418,x2:205,y2:375,thick:9,c:0});
+  L.rails.push({x1:M(205),y1:125,x2:M(78),y2:82,thick:9,c:0},{x1:M(205),y1:375,x2:M(78),y2:418,thick:9,c:0});
+  // Re-entry rails
+  const re=[{x:470,y:82},{x:510,y:90},{x:545,y:105}];
+  for(let i=1;i<re.length;i++){L.rails.push({x1:re[i-1].x,y1:re[i-1].y,x2:re[i].x,y2:re[i].y,thick:6,c:0});L.rails.push({x1:M(re[i].x),y1:re[i].y,x2:M(re[i-1].x),y2:re[i-1].y,thick:6,c:0});}
+  // Target bars (3 per side)
+  for(let i=0;i<3;i++){L.targets.push({x1:315+i*10,y1:340+i*8,x2:350+i*10,y2:350+i*8,thick:6,c:0,f:0});L.targets.push({x1:M(350+i*10),y1:350+i*8,x2:M(315+i*10),y2:340+i*8,thick:6,c:0,f:0});}
+  // Posts
+  L.posts.push({x:205,y:225,r:8,c:0,f:0},{x:205,y:275,r:8,c:0,f:0},{x:M(205),y:225,r:8,c:0,f:0},{x:M(205),y:275,r:8,c:0,f:0});
+  // Plungers
+  L.plungers.push({x:85,y:438,side:'left',pull:0,pulling:false,released:false,timer:0});
+  L.plungers.push({x:M(85),y:438,side:'right',pull:0,pulling:false,released:false,timer:0});
+  return L;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1504,6 +1556,9 @@ class SoundEngine {
     const t=this.ctx.currentTime,g=this.ctx.createGain();g.gain.setValueAtTime(.12,t);g.connect(this.ctx.destination);
     const o=this.ctx.createOscillator();
     if(type==='bumper'){o.type='triangle';o.frequency.setValueAtTime(200,t);o.frequency.exponentialRampToValueAtTime(60,t+.08);o.connect(g);o.start(t);o.stop(t+.1);}
+    else if(type==='sling'){o.type='sawtooth';o.frequency.setValueAtTime(400,t);o.frequency.exponentialRampToValueAtTime(100,t+.04);o.connect(g);o.start(t);o.stop(t+.05);}
+    else if(type==='kicker'){o.type='square';o.frequency.setValueAtTime(600,t);o.frequency.exponentialRampToValueAtTime(200,t+.03);o.connect(g);o.start(t);o.stop(t+.04);}
+    else if(type==='plunger'){o.type='triangle';o.frequency.setValueAtTime(100,t);o.frequency.linearRampToValueAtTime(300,t+.07);o.connect(g);o.start(t);o.stop(t+.09);}
     else{o.type='sine';o.frequency.setValueAtTime(500,t);o.connect(g);o.start(t);o.stop(t+.03);}
   }
 }
@@ -1702,7 +1757,7 @@ class PongGame {
     this.ballSpeedMod=1;
     this.multiBalls=[];this.poolObjBalls=[];this.poolRackSide=choosePoolRackSide();
     this.poolServeSide='left';this.poolMainRespawn=null;this.poolClackTick=0;
-    this.pinballLayout=null;
+    this.pinballLayout=null;this.pinballServe=null;
     this.lastTime=0;this.accumulator=0;this.tickRate=1000/60;
     this._loop=this._loop.bind(this);this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,0);this._loop(0);
   }
@@ -1783,8 +1838,9 @@ class PongGame {
       const wr=this._checkWin();if(wr){this.winMessage='PLAYER '+wr+' WINS!';this.state='over';if(settings.soundEnabled)this.sound.play('win');}
     }
     if(newState==='serving'){
-      this.paddleLeft.reset(CONFIG.canvasHeight);this.paddleRight.reset(CONFIG.canvasHeight);
-      this.ball.reset(CONFIG.canvasWidth,CONFIG.canvasHeight,this.serveDirection);
+      this.paddleLeft.reset(this.canvas.height);this.paddleRight.reset(this.canvas.height);
+      if(settings.gameVariant==='pinball'){this._preparePinballServe();}
+      else{this.ball.reset(this.canvas.width,this.canvas.height,this.serveDirection);}
       this.multiBalls=[];
       if(settings.gameVariant==='frenzy')this._spawnFrenzyBalls();
       // Pool Mode: rack + side-spawn
@@ -1834,7 +1890,10 @@ class PongGame {
     for(let i=this.particles.length-1;i>=0;i--){this.particles[i].update();if(this.particles[i].dead)this.particles.splice(i,1);}
   }
   _updateIdle(){if(this.active&&this.input.isDown(' ')){this.sound.init();this.start();}}
-  _updateServing(){if(++this.serveTimer>90)this.transition('playing');}
+  _updateServing(){
+    if(settings.gameVariant==='pinball'){this._updatePinballMode();return;}
+    if(++this.serveTimer>90)this.transition('playing');
+  }
   _updatePlaying(){
     this._handleInput();
     const ch=settings.gameVariant==='pool'?getPoolBounds().bottom:CONFIG.canvasHeight;
@@ -2036,52 +2095,134 @@ class PongGame {
     if(!this.pinballLayout||this.pinballLayout._aw!==aw)this.pinballLayout=createPinballLayout(aw,ah);
     if(this.pinballLayout)this.pinballLayout._aw=aw;
   }
-  _resetPinballState(){const L=this.pinballLayout;if(!L)return;for(const b of L.bumpers){b.c=0;b.f=0;}for(const p of L.posts){p.c=0;p.f=0;}}
-  _drawPinballArena(ctx,w,h,theme){
-    const accent=settings.themeOverrideAccent||theme.text,L=this.pinballLayout;if(!L)return;
-    ctx.fillStyle='#0a0f1a';ctx.fillRect(0,0,w,h);
-    ctx.strokeStyle='#3a3f4d';ctx.lineWidth=12;ctx.strokeRect(4,4,w-8,h-8);
-    for(const b of L.bumpers){
-      const g=b.f>0?1+b.f/PB.bFlash*.4:1;
-      ctx.fillStyle='#1a1a2e';ctx.beginPath();ctx.arc(b.x,b.y,b.r+2,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle=b.type==='large'?'#c0392b':'#2980b9';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=accent;ctx.lineWidth=2*g;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
-    }
-    for(const p of L.posts){ctx.fillStyle='#333';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.stroke();}
-    for(const sp of L.spinners){
-      const hl=sp.len/2,ex1=sp.x+Math.cos(sp.ang)*hl,ey1=sp.y+Math.sin(sp.ang)*hl,ex2=sp.x-Math.cos(sp.ang)*hl,ey2=sp.y-Math.sin(sp.ang)*hl;
-      ctx.strokeStyle='#8992a8';ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();
-      ctx.strokeStyle=accent;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(ex1,ey1);ctx.lineTo(ex2,ey2);ctx.stroke();ctx.fillStyle=accent;ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
-    }
+  _resetPinballState(){
+    const L=this.pinballLayout;if(!L)return;
+    for(const a of['bumpers','kickers','gravityWells','rArms','slingshots','targets','posts'])
+      for(const o of L[a]||[]){o.c=0;o.f=0;}
+    for(const p of L.plungers){p.pull=0;p.pulling=false;p.released=false;}
+    this.pinballServe=null;
+  }
+  _preparePinballServe(){
+    const side=Math.random()<.5?'left':'right';
+    this.pinballServe={side,phase:'loading',timer:0,launchSpeed:0,launched:false};
+    const pl=this.pinballLayout.plungers.find(p=>p.side===side);
+    this.ball.x=pl.x;this.ball.y=pl.y;this.ball.prevX=pl.x;this.ball.prevY=pl.y;
+    this.ball.dx=0;this.ball.dy=0;this.ball.speed=0;
   }
   _updatePinballMode(){
     this._ensurePinballLayout();const L=this.pinballLayout,ball=this.ball;
-    if(!this.paused)for(const sp of L.spinners){sp.ang+=sp.av;sp.av=sp.av*.995+sp.bav*.005;}
+    // Handle plunger
+    if(this.pinballServe&&!this.paused){
+      const ps=this.pinballServe,pl=L.plungers.find(p=>p.side===ps.side);
+      if(ps.phase==='loading'){this.serveTimer++;if(this.serveTimer>25){ps.phase='pulling';ps.timer=0;pl.pulling=true;}}
+      else if(ps.phase==='pulling'){ps.timer++;pl.pull=Math.min(1,ps.timer/35);if(ps.timer>=35){ps.phase='releasing';ps.timer=0;pl.released=true;pl.pulling=false;
+        ps.launchSpeed=CONFIG.ballSpeedInitial*(1.08+Math.random()*.15);
+        const dir=ps.side==='left'?1:-1,a=(ps.side==='left'?-.12:.12)+Math.random()*.04;
+        ball.dx=Math.cos(a)*ps.launchSpeed*dir;ball.dy=Math.sin(a)*ps.launchSpeed;ball.speed=ps.launchSpeed;ps.launched=true;
+        if(settings.soundEnabled)this.sound.playPinballSound('plunger');}}
+      else if(ps.phase==='releasing'){ps.timer++;if(ps.timer>8){ps.phase='active';this.pinballServe=null;this.transition('playing');return;}}
+      if(ps.phase!=='active')return;
+    }
+    // Physics
     ball.prevX=ball.x;ball.prevY=ball.y;
     const spd=Math.hypot(ball.dx,ball.dy),br=ball.size/2;
-    const subs=Math.min(8,Math.max(1,Math.ceil(spd/(br*.4+2))));
+    const subs=Math.min(12,Math.max(1,Math.ceil(spd/(br*.35+2))));
     const sx=ball.dx/subs,sy=ball.dy/subs;
     for(let s=0;s<subs;s++){
       ball.x+=sx;ball.y+=sy;
+      // Paddles
       const bw=ball.size/2,pL=this.paddleLeft,pR=this.paddleRight;
       if(ball.dx<0&&ball.x-bw<=pL.x+pL.width&&ball.x-bw>=pL.x&&ball.y+bw>=pL.y&&ball.y-bw<=pL.y+pL.height){this._hitBall(ball,pL,1);ball.lastTouchedBy='left';}
       if(ball.dx>0&&ball.x+bw>=pR.x&&ball.x+bw<=pR.x+pR.width&&ball.y+bw>=pR.y&&ball.y-bw<=pR.y+pR.height){this._hitBall(ball,pR,-1);ball.lastTouchedBy='right';}
-      for(const b of L.bumpers){
-        const hit=resolveCircleCollision(ball,br,b.x,b.y,b.r,b.type==='large'?PB.bRest:PB.bRest*.95,b.type==='large'?PB.bBoost:PB.bBoost*.6);
-        if(hit){if(b.c<=0&&settings.soundEnabled)this.sound.playPinballSound('bumper');b.c=PB.bCool;b.f=PB.bFlash;}
+      // Circles
+      const circles=[...L.bumpers,...L.kickers,...L.gravityWells,...L.posts];
+      for(const c of circles){
+        const hit=resolveCircle(ball,br,c.x,c.y,c.r,
+          c.type==='large'?PB.bRest:c.type==='wormhole'||c.type==='inner'?1.06:1.0,
+          c.type==='large'?PB.bBoost:c.type==='wormhole'||c.type==='inner'?.15:0);
+        if(hit){if(c.c<=0&&settings.soundEnabled)this.sound.playPinballSound(c.type==='large'?'bumper':c.type==='wormhole'?'kicker':'post');c.c=PB.bCool;c.f=PB.bFlash;}
       }
-      for(const p of L.posts){
-        const hit=resolveCircleCollision(ball,br,p.x,p.y,p.r,1.01,0);
-        if(hit){if(p.c<=0&&settings.soundEnabled)this.sound.playPinballSound('post');p.c=PB.bCool;p.f=8;}
+      // Segments
+      const segs=[...L.cabinet,...L.launchLanes,...L.rails,...L.rArms.map(a=>({...a,rest:.98,boost:.12})),...L.targets];
+      for(const seg of segs){
+        const hit=resolveCapsule(ball,br,seg.x1,seg.y1,seg.x2,seg.y2,seg.thick,seg.rest||.98,seg.boost||0);
+        if(hit){if(seg.c!==undefined&&seg.c<=0&&settings.soundEnabled)this.sound.playPinballSound('rail');if(seg.c!==undefined)seg.c=PB.bCool;if(seg.f!==undefined)seg.f=8;}
       }
+      // Slingshots
+      for(const sl of L.slingshots){
+        const a=sl.a;let hit=false;
+        for(let i=0;i<a.length;i++)if(resolveCapsule(ball,br,a[i].x,a[i].y,a[(i+1)%a.length].x,a[(i+1)%a.length].y,4,PB.sRest,PB.sImp))hit=true;
+        if(!hit&&pointInPoly(ball.x,ball.y,a)){
+          let bestD=Infinity,bi=0;
+          for(let i=0;i<a.length;i++){const cp=closestOnSeg(ball.x,ball.y,a[i].x,a[i].y,a[(i+1)%a.length].x,a[(i+1)%a.length].y);const d=Math.hypot(ball.x-cp.x,ball.y-cp.y);if(d<bestD){bestD=d;bi=i;}}
+          const p1=a[bi],p2=a[(bi+1)%a.length],dx=p2.x-p1.x,dy=p2.y-p1.y,l=Math.hypot(dx,dy);
+          if(l>.001){ball.x+=dx/l*br;ball.y+=dy/l*br;const dot=ball.dx*dx/l+ball.dy*dy/l;if(dot<0){ball.dx-=2*dot*dx/l;ball.dy-=2*dot*dy/l;}}hit=true;
+        }
+        if(hit){if(sl.c<=0&&settings.soundEnabled)this.sound.playPinballSound('sling');sl.c=PB.bCool;sl.f=PB.bFlash;}
+      }
+      // Walls + goals
       if(ball.y-br<=0){ball.y=br;ball.dy=Math.abs(ball.dy);}
       if(ball.y+br>=this.canvas.height){ball.y=this.canvas.height-br;ball.dy=-Math.abs(ball.dy);}
       if(ball.x+br<0){this.paddleRight.score++;this.transition('goal');return;}
       if(ball.x-br>this.canvas.width){this.paddleLeft.score++;this.transition('goal');return;}
     }
-    for(const b of L.bumpers){if(b.c>0)b.c--;if(b.f>0)b.f--;}
-    for(const p of L.posts){if(p.c>0)p.c--;if(p.f>0)p.f--;}
+    for(const a of['bumpers','kickers','gravityWells','rArms','slingshots','targets','posts'])
+      for(const o of L[a]||[]){if(o.c>0)o.c--;if(o.f>0)o.f--;}
     ball.speed=Math.hypot(ball.dx,ball.dy);
+  }
+  _drawPinballArena(ctx,w,h,theme){
+    const accent=settings.themeOverrideAccent||theme.text,L=this.pinballLayout;if(!L)return;
+    ctx.fillStyle='#0a0f1a';ctx.fillRect(0,0,w,h);
+    // Table bodies
+    ctx.strokeStyle='#3a3f4d';ctx.lineWidth=12;ctx.lineJoin='round';
+    for(const tb of L.tableBodies){ctx.beginPath();ctx.moveTo(tb.a[0].x,tb.a[0].y);for(let i=1;i<tb.a.length;i++)ctx.lineTo(tb.a[i].x,tb.a[i].y);ctx.closePath();ctx.stroke();}
+    // Cabinet
+    ctx.strokeStyle='#8992a8';ctx.lineWidth=3;ctx.lineCap='round';
+    for(const s of L.cabinet){ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();}
+    // Launch lanes
+    ctx.strokeStyle='#5a6070';ctx.lineWidth=3;
+    for(const s of L.launchLanes){ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();}
+    // Rails
+    ctx.strokeStyle='#8992a8';ctx.lineWidth=3;
+    for(const s of L.rails){ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();}
+    // Rebound arms
+    for(const a of L.rArms){const g=a.f>0?1.3:1;ctx.strokeStyle=accent;ctx.lineWidth=6*g;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a.x1,a.y1);ctx.lineTo(a.x2,a.y2);ctx.stroke();}
+    // Slingshots
+    for(const sl of L.slingshots){
+      const g=sl.f>0?1+sl.f/PB.bFlash*.3:1;ctx.fillStyle='#1a1a2e';ctx.strokeStyle='#c0392b';ctx.lineWidth=3*g;ctx.beginPath();
+      ctx.moveTo(sl.a[0].x,sl.a[0].y);for(let i=1;i<sl.a.length;i++)ctx.lineTo(sl.a[i].x,sl.a[i].y);ctx.closePath();ctx.fill();ctx.stroke();
+    }
+    // Bumpers
+    for(const b of L.bumpers){
+      const g=b.f>0?1+b.f/PB.bFlash*.5:1;ctx.fillStyle='#1a1a2e';ctx.beginPath();ctx.arc(b.x,b.y,b.r+2,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#c0392b';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=accent;ctx.lineWidth=2*g;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
+    }
+    // Kickers
+    for(const k of L.kickers){
+      const g=k.f>0?1+k.f/9*.4:1;ctx.fillStyle=k.type==='wormhole'?'#1a0a2e':'#2a1040';ctx.beginPath();ctx.arc(k.x,k.y,k.r+3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=k.type==='wormhole'?'#4422aa':'#8844cc';ctx.beginPath();ctx.arc(k.x,k.y,k.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=accent;ctx.lineWidth=2*g;ctx.beginPath();ctx.arc(k.x,k.y,k.r,0,Math.PI*2);ctx.stroke();
+    }
+    // Gravity wells
+    for(const gw of L.gravityWells){
+      const g=gw.f>0?1+gw.f/PB.bFlash*.5:1;ctx.fillStyle='#0a1628';ctx.beginPath();ctx.arc(gw.x,gw.y,gw.r+3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#1a3a5c';ctx.beginPath();ctx.arc(gw.x,gw.y,gw.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=accent;ctx.lineWidth=3*g;ctx.beginPath();ctx.arc(gw.x,gw.y,gw.r,0,Math.PI*2);ctx.stroke();
+    }
+    // Targets
+    for(const t of L.targets){const g=t.f>0?1.4:1;ctx.strokeStyle='#c0392b';ctx.lineWidth=3*g;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke();}
+    // Posts
+    for(const p of L.posts){ctx.fillStyle='#333';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.stroke();}
+    // Plungers
+    for(const pl of L.plungers){
+      const px=pl.x+(pl.side==='left'?-pl.pull*25:pl.pull*25),py=pl.y;
+      ctx.strokeStyle='#8992a8';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(pl.x,pl.y);ctx.lineTo(px,py);ctx.stroke();
+      ctx.fillStyle=accent;ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fill();
+    }
+    // Center marker (faint)
+    ctx.strokeStyle=accent;ctx.globalAlpha=.06;ctx.lineWidth=1;ctx.setLineDash([4,16]);
+    ctx.beginPath();ctx.moveTo(w/2,20);ctx.lineTo(w/2,h-20);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
   }
   _ballCollision(a,b){
     const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy),min=(a.size+b.size)/2;

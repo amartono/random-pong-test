@@ -24,7 +24,7 @@ const CONFIG = {
 
 /* ---- pinball ---- */
 const PB={maxSpeed:CONFIG.ballSpeedMax,bRest:1.08,bBoost:.2,bFlash:12,bCool:7,sRest:1.06,sImp:.2};
-const STAGE={normal:{w:800,h:500},pinball:{w:1200,h:500}};
+const STAGE={normal:{w:800,h:500},pinball:{w:1400,h:560}};
 
 /* ---- power-up types ---- */
 const POWERUP_TYPES = [
@@ -265,51 +265,45 @@ function resolveCircle(ball,br,cx,cy,cr,rest,boost){
 }
 function createPinballLayout(aw,ah){
   const w=aw,h=ah,M=(x)=>w-x;
-  const L={tableBodies:[],cabinet:[],launchLanes:[],rails:[],bumpers:[],kickers:[],gravityWells:[],rArms:[],slingshots:[],targets:[],posts:[],plungers:[],decor:[]};
-  // Tapered table bodies
-  L.tableBodies.push({a:[{x:70,y:25},{x:555,y:78},{x:555,y:422},{x:70,y:475}]});
-  L.tableBodies.push({a:[{x:M(70),y:475},{x:M(555),y:422},{x:M(555),y:78},{x:M(70),y:25}]});
-  // Cabinet segments
-  const cabSegs=[
-    {x1:70,y1:25,x2:555,y2:78},{x1:70,y1:475,x2:555,y2:422},
-    {x1:70,y1:25,x2:70,y2:90},{x1:70,y1:410,x2:70,y2:475}, // drain mouth walls
-  ];
-  for(const s of cabSegs){L.cabinet.push({...s,thick:10});L.cabinet.push({x1:M(s.x2),y1:s.y2,x2:M(s.x1),y2:s.y1,thick:10});}
-  // Launch lanes (curved)
-  const lo=[{x:82,y:462},{x:165,y:462},{x:235,y:442},{x:300,y:405},{x:350,y:355},{x:390,y:295},{x:425,y:230},{x:465,y:170},{x:515,y:125},{x:550,y:115}];
-  const li=[{x:120,y:420},{x:178,y:420},{x:228,y:405},{x:275,y:375},{x:315,y:335},{x:350,y:280},{x:380,y:220},{x:420,y:160},{x:480,y:108},{x:550,y:96}];
-  for(let i=1;i<lo.length;i++)L.launchLanes.push({x1:lo[i-1].x,y1:lo[i-1].y,x2:lo[i].x,y2:lo[i].y,thick:8});
-  for(let i=1;i<li.length;i++)L.launchLanes.push({x1:li[i-1].x,y1:li[i-1].y,x2:li[i].x,y2:li[i].y,thick:8});
-  for(let i=1;i<lo.length;i++)L.launchLanes.push({x1:M(lo[i].x),y1:lo[i].y,x2:M(lo[i-1].x),y2:lo[i-1].y,thick:8});
-  for(let i=1;i<li.length;i++)L.launchLanes.push({x1:M(li[i].x),y1:li[i].y,x2:M(li[i-1].x),y2:li[i-1].y,thick:8});
+  const L={launchLanes:[],rails:[],bumpers:[],kickers:[],gravityWells:[],posts:[],slingshots:[],rArms:[],targets:[],plungers:[],decor:[]};
+  // Launch lanes
+  const lo=[{x:75,y:520},{x:175,y:520},{x:285,y:510},{x:390,y:490},{x:485,y:450},{x:555,y:395},{x:600,y:330},{x:625,y:250},{x:635,y:165},{x:635,y:115}];
+  const li=[{x:120,y:474},{x:190,y:474},{x:280,y:465},{x:370,y:448},{x:450,y:415},{x:510,y:368},{x:550,y:310},{x:580,y:240},{x:595,y:165},{x:595,y:115}];
+  for(let i=1;i<lo.length;i++)L.launchLanes.push({x1:lo[i-1].x,y1:lo[i-1].y,x2:lo[i].x,y2:lo[i].y,thick:8,c:0});
+  for(let i=1;i<li.length;i++)L.launchLanes.push({x1:li[i-1].x,y1:li[i-1].y,x2:li[i].x,y2:li[i].y,thick:8,c:0});
+  for(let i=1;i<lo.length;i++)L.launchLanes.push({x1:M(lo[i].x),y1:lo[i].y,x2:M(lo[i-1].x),y2:lo[i-1].y,thick:8,c:0});
+  for(let i=1;i<li.length;i++)L.launchLanes.push({x1:M(li[i].x),y1:li[i].y,x2:M(li[i-1].x),y2:li[i-1].y,thick:8,c:0});
   // Attack bumpers (3 per side)
-  L.bumpers.push({x:360,y:160,r:23,type:'large',c:0,f:0},{x:435,y:225,r:23,type:'large',c:0,f:0},{x:360,y:290,r:23,type:'large',c:0,f:0});
-  L.bumpers.push({x:M(360),y:160,r:23,type:'large',c:0,f:0},{x:M(435),y:225,r:23,type:'large',c:0,f:0},{x:M(360),y:290,r:23,type:'large',c:0,f:0});
+  L.bumpers.push({x:350,y:160,r:24,type:'large',c:0,f:0},{x:445,y:235,r:24,type:'large',c:0,f:0},{x:350,y:310,r:24,type:'large',c:0,f:0});
+  L.bumpers.push({x:M(350),y:160,r:24,type:'large',c:0,f:0},{x:M(445),y:235,r:24,type:'large',c:0,f:0},{x:M(350),y:310,r:24,type:'large',c:0,f:0});
   // Kickers
-  L.kickers.push({x:280,y:112,r:15,type:'wormhole',c:0,f:0},{x:510,y:155,r:14,type:'inner',c:0,f:0});
-  L.kickers.push({x:M(280),y:112,r:15,type:'wormhole',c:0,f:0},{x:M(510),y:155,r:14,type:'inner',c:0,f:0});
+  L.kickers.push({x:250,y:115,r:16,type:'wormhole',c:0,f:0},{x:565,y:175,r:14,type:'inner',c:0,f:0});
+  L.kickers.push({x:M(250),y:115,r:16,type:'wormhole',c:0,f:0},{x:M(565),y:175,r:14,type:'inner',c:0,f:0});
   // Gravity wells
-  L.gravityWells.push({x:415,y:355,r:29,c:0,f:0},{x:M(415),y:355,r:29,c:0,f:0});
+  L.gravityWells.push({x:465,y:390,r:31,c:0,f:0},{x:M(465),y:390,r:31,c:0,f:0});
   // Rebound arms
-  L.rArms.push({x1:105,y1:155,x2:220,y2:215,thick:12,c:0,f:0},{x1:105,y1:345,x2:220,y2:285,thick:12,c:0,f:0});
-  L.rArms.push({x1:M(220),y1:215,x2:M(105),y2:155,thick:12,c:0,f:0},{x1:M(220),y1:285,x2:M(105),y2:345,thick:12,c:0,f:0});
+  L.rArms.push({x1:105,y1:180,x2:225,y2:240,thick:13,c:0,f:0},{x1:105,y1:380,x2:225,y2:320,thick:13,c:0,f:0});
+  L.rArms.push({x1:M(225),y1:240,x2:M(105),y2:180,thick:13,c:0,f:0},{x1:M(225),y1:320,x2:M(105),y2:380,thick:13,c:0,f:0});
   // Slingshots
-  const lsu={a:[{x:220,y:140},{x:305,y:190},{x:242,y:240}],c:0,f:0};
-  const lsl={a:[{x:220,y:360},{x:305,y:310},{x:242,y:260}],c:0,f:0};
+  const lsu={a:[{x:225,y:160},{x:320,y:220},{x:245,y:275}],c:0,f:0};
+  const lsl={a:[{x:225,y:400},{x:320,y:340},{x:245,y:285}],c:0,f:0};
   L.slingshots.push(lsu,lsl,{a:lsu.a.map(p=>({x:M(p.x),y:p.y})),c:0,f:0},{a:lsl.a.map(p=>({x:M(p.x),y:p.y})),c:0,f:0});
-  // Outer rails
-  L.rails.push({x1:78,y1:82,x2:205,y2:125,thick:9,c:0},{x1:78,y1:418,x2:205,y2:375,thick:9,c:0});
-  L.rails.push({x1:M(205),y1:125,x2:M(78),y2:82,thick:9,c:0},{x1:M(205),y1:375,x2:M(78),y2:418,thick:9,c:0});
+  // Return rails
+  L.rails.push({x1:75,y1:80,x2:205,y2:125,thick:9,c:0},{x1:75,y1:480,x2:205,y2:435,thick:9,c:0});
+  L.rails.push({x1:M(205),y1:125,x2:M(75),y2:80,thick:9,c:0},{x1:M(205),y1:435,x2:M(75),y2:480,thick:9,c:0});
   // Re-entry rails
-  const re=[{x:470,y:82},{x:510,y:90},{x:545,y:105}];
+  const re=[{x:420,y:85},{x:475,y:70},{x:530,y:76},{x:575,y:95},{x:610,y:125}];
   for(let i=1;i<re.length;i++){L.rails.push({x1:re[i-1].x,y1:re[i-1].y,x2:re[i].x,y2:re[i].y,thick:6,c:0});L.rails.push({x1:M(re[i].x),y1:re[i].y,x2:M(re[i-1].x),y2:re[i-1].y,thick:6,c:0});}
-  // Target bars (3 per side)
-  for(let i=0;i<3;i++){L.targets.push({x1:315+i*10,y1:340+i*8,x2:350+i*10,y2:350+i*8,thick:6,c:0,f:0});L.targets.push({x1:M(350+i*10),y1:350+i*8,x2:M(315+i*10),y2:340+i*8,thick:6,c:0,f:0});}
+  // Targets (3 per side)
+  const ltg=[{x:330,y:390},{x:350,y:402},{x:370,y:414}];
+  for(const t of ltg)L.targets.push({x1:t.x-12,y1:t.y-4,x2:t.x+12,y2:t.y+4,thick:6,c:0,f:0});
+  for(const t of ltg)L.targets.push({x1:M(t.x+12),y1:t.y+4,x2:M(t.x-12),y2:t.y-4,thick:6,c:0,f:0});
   // Posts
-  L.posts.push({x:205,y:225,r:8,c:0,f:0},{x:205,y:275,r:8,c:0,f:0},{x:M(205),y:225,r:8,c:0,f:0},{x:M(205),y:275,r:8,c:0,f:0});
+  L.posts.push({x:175,y:260,r:8,c:0,f:0},{x:290,y:125,r:8,c:0,f:0},{x:525,y:285,r:8,c:0,f:0},{x:405,y:430,r:8,c:0,f:0});
+  L.posts.push({x:M(175),y:260,r:8,c:0,f:0},{x:M(290),y:125,r:8,c:0,f:0},{x:M(525),y:285,r:8,c:0,f:0},{x:M(405),y:430,r:8,c:0,f:0});
   // Plungers
-  L.plungers.push({x:85,y:438,side:'left',pull:0,pulling:false,released:false,timer:0});
-  L.plungers.push({x:M(85),y:438,side:'right',pull:0,pulling:false,released:false,timer:0});
+  L.plungers.push({x:90,y:495,side:'left',pull:0,pulling:false,released:false,timer:0});
+  L.plungers.push({x:M(90),y:495,side:'right',pull:0,pulling:false,released:false,timer:0});
   return L;
 }
 
@@ -2097,8 +2091,11 @@ class PongGame {
   }
   _resetPinballState(){
     const L=this.pinballLayout;if(!L)return;
-    for(const a of['bumpers','kickers','gravityWells','rArms','slingshots','targets','posts'])
+    for(const a of['bumpers','kickers','gravityWells','slingshots','targets'])
       for(const o of L[a]||[]){o.c=0;o.f=0;}
+    for(const o of L.rArms||[]){o.c=0;o.f=0;}
+    for(const o of L.launchLanes||[]){o.c=0;}
+    for(const o of L.rails||[]){o.c=0;}
     for(const p of L.plungers){p.pull=0;p.pulling=false;p.released=false;}
     this.pinballServe=null;
   }
@@ -2143,7 +2140,7 @@ class PongGame {
         if(hit){if(c.c<=0&&settings.soundEnabled)this.sound.playPinballSound(c.type==='large'?'bumper':c.type==='wormhole'?'kicker':'post');c.c=PB.bCool;c.f=PB.bFlash;}
       }
       // Segments
-      const segs=[...L.cabinet,...L.launchLanes,...L.rails,...L.rArms.map(a=>({...a,rest:.98,boost:.12})),...L.targets];
+      const segs=[...L.launchLanes,...L.rails,...L.rArms.map(a=>({...a,rest:.98,boost:.12})),...L.targets];
       for(const seg of segs){
         const hit=resolveCapsule(ball,br,seg.x1,seg.y1,seg.x2,seg.y2,seg.thick,seg.rest||.98,seg.boost||0);
         if(hit){if(seg.c!==undefined&&seg.c<=0&&settings.soundEnabled)this.sound.playPinballSound('rail');if(seg.c!==undefined)seg.c=PB.bCool;if(seg.f!==undefined)seg.f=8;}
@@ -2166,24 +2163,28 @@ class PongGame {
       if(ball.x+br<0){this.paddleRight.score++;this.transition('goal');return;}
       if(ball.x-br>this.canvas.width){this.paddleLeft.score++;this.transition('goal');return;}
     }
-    for(const a of['bumpers','kickers','gravityWells','rArms','slingshots','targets','posts'])
+    for(const a of['bumpers','kickers','gravityWells','slingshots','targets'])
       for(const o of L[a]||[]){if(o.c>0)o.c--;if(o.f>0)o.f--;}
+    for(const o of L.rArms||[]){if(o.c>0)o.c--;if(o.f>0)o.f--;}
+    for(const o of L.launchLanes||[]){if(o.c>0)o.c--;}
+    for(const o of L.rails||[]){if(o.c>0)o.c--;}
     ball.speed=Math.hypot(ball.dx,ball.dy);
   }
   _drawPinballArena(ctx,w,h,theme){
     const accent=settings.themeOverrideAccent||theme.text,L=this.pinballLayout;if(!L)return;
-    ctx.fillStyle='#0a0f1a';ctx.fillRect(0,0,w,h);
-    // Table bodies
-    ctx.strokeStyle='#3a3f4d';ctx.lineWidth=12;ctx.lineJoin='round';
-    for(const tb of L.tableBodies){ctx.beginPath();ctx.moveTo(tb.a[0].x,tb.a[0].y);for(let i=1;i<tb.a.length;i++)ctx.lineTo(tb.a[i].x,tb.a[i].y);ctx.closePath();ctx.stroke();}
-    // Cabinet
-    ctx.strokeStyle='#8992a8';ctx.lineWidth=3;ctx.lineCap='round';
-    for(const s of L.cabinet){ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();}
+    ctx.fillStyle='#111';ctx.fillRect(0,0,w,h);
+    // Outer cabinet
+    ctx.strokeStyle='#3a3f4d';ctx.lineWidth=14;ctx.strokeRect(10,10,w-20,h-20);
+    ctx.strokeStyle='#8992a8';ctx.lineWidth=2;ctx.strokeRect(10,10,w-20,h-20);
+    // Inner trim
+    ctx.strokeStyle='#3a3f4d';ctx.lineWidth=3;ctx.strokeRect(20,20,w-40,h-40);
+    // Continuous playfield
+    ctx.fillStyle='#0a0f1a';ctx.fillRect(22,22,w-44,h-44);
     // Launch lanes
-    ctx.strokeStyle='#5a6070';ctx.lineWidth=3;
+    ctx.strokeStyle='#5a6070';ctx.lineWidth=3;ctx.lineCap='round';
     for(const s of L.launchLanes){ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();}
     // Rails
-    ctx.strokeStyle='#8992a8';ctx.lineWidth=3;
+    ctx.strokeStyle='#8992a8';ctx.lineWidth=3;ctx.lineCap='round';
     for(const s of L.rails){ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();}
     // Rebound arms
     for(const a of L.rArms){const g=a.f>0?1.3:1;ctx.strokeStyle=accent;ctx.lineWidth=6*g;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a.x1,a.y1);ctx.lineTo(a.x2,a.y2);ctx.stroke();}
@@ -2220,9 +2221,9 @@ class PongGame {
       ctx.strokeStyle='#8992a8';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(pl.x,pl.y);ctx.lineTo(px,py);ctx.stroke();
       ctx.fillStyle=accent;ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fill();
     }
-    // Center marker (faint)
+    // Center marker (faint, no collision)
     ctx.strokeStyle=accent;ctx.globalAlpha=.06;ctx.lineWidth=1;ctx.setLineDash([4,16]);
-    ctx.beginPath();ctx.moveTo(w/2,20);ctx.lineTo(w/2,h-20);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+    ctx.beginPath();ctx.moveTo(w/2,25);ctx.lineTo(w/2,h-25);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
   }
   _ballCollision(a,b){
     const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy),min=(a.size+b.size)/2;
